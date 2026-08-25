@@ -1,0 +1,411 @@
+\documentclass[11pt]{amsart}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+
+\geometry{margin=1in}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{openproblem}[theorem]{Open Problem}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem*{note}{Note}
+
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\ex}{\mathrm{excess}}
+
+\title[Sorting Pairs in Bins]{Sorting Pairs in Bins: Exact Values, a Conjectured Closed Form, and Partial Progress on a Puzzle of Winkler}
+
+\author{}
+\date{\today}
+
+\begin{document}
+
+\begin{abstract}
+We study the \emph{Sorting Pairs in Bins} puzzle, listed among the unsolved puzzles in Peter Winkler's \emph{Mathematical Puzzles: A Connoisseur's Collection}: $n$ bins are arranged in a row, the $i$-th bin initially containing two balls labeled $n+1-i$; a move consists of swapping one ball from bin $i$ with one ball from bin $i+1$; the goal is to determine $T(n)$, the minimum number of moves needed to bring bin $i$ to contain two balls labeled $i$ for every $i$. We report exact values of $T(n)$ for $n\le 7$, obtained by exhaustive and bidirectional breadth-first search, and conjecture the closed-form formula
+\[
+T(n) = \left\lfloor \frac{n^2}{2}\right\rfloor + S(n), \qquad S(n) = \sum_{k=2}^n \left\lfloor \frac{k}{3}\right\rfloor,
+\]
+which we verify exactly for $1\le n\le 7$ and for which we give an elementary closed form. We prove the baseline lower bound $T(n)\ge \lfloor n^2/2\rfloor$ via a displacement potential, establish an exact accounting identity decomposing $T(n)$ into a displacement term and an ``excess'' contributed by non-progressing moves, and reformulate the problem as a weighted reduced-word problem for the longest element of $S_{2n}$, in which we prove a new structural lemma governing the temporal order of three-wire crossings. We rigorously establish that several natural proof strategies --- single-wire arguments, positional-parity arguments, local aggregate potentials analyzed via linear programming over the full reachable state graph, pure local-greedy constructions, and a natural bin-removal induction --- are all individually insufficient to prove the conjectured excess term, and we document each insufficiency with an explicit witnessing example. We introduce an auxiliary ``wall-crossing'' subproblem for which we prove an exact linear formula, and report a striking, data-grounded ``50\% absorption'' phenomenon in a nested generalization of it that is in direct numerical tension with the main conjecture at $n=8$. We close with a precise statement of this open discrepancy and a list of open problems.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+
+In \emph{Mathematical Puzzles: A Connoisseur's Collection} \cite{Winkler}, Peter Winkler lists, among a handful of puzzles he was unable to resolve at the time of writing, the following.
+
+\begin{quote}
+\textbf{Sorting Pairs in Bins.} Standing in a row are $n$ bins, the $i$-th bin containing two balls numbered $n+1-i$. At any time, you may swap two balls from adjacent bins. How many swaps are needed to get every ball into the bin carrying its number?
+\end{quote}
+
+We interpret ``swap two balls from adjacent bins,'' consistently with the accompanying figure in \cite{Winkler}, as: choose one ball from bin $i$ and one ball from bin $i+1$, for some $i$, and exchange them. Denote by $T(n)$ the minimum number of such swaps required to reach the target configuration, in which bin $i$ contains two balls labeled $i$ for every $i$.
+
+This puzzle sits in the same family as the \emph{Malicious Ma\^itre D'} problem, also from \cite{Winkler}, whose adaptive variant was recently resolved by Madhavarapu \cite{MaitreD}, building on work of Acton, Kotek, Miller, and others. That paper's methodology --- exact combinatorial analysis of a discrete optimization puzzle from Winkler's book, informed by extensive computational experimentation --- served as a model for the present investigation.
+
+Unlike the Malicious Ma\^itre D' problem, we have not been able to obtain a complete solution to Sorting Pairs in Bins. What we report here is, we believe, still of value: an exact conjectural formula supported by full verification for $n\le 7$; several genuine theorems constraining any eventual proof; a systematic account of natural proof strategies that we have rigorously ruled out, together with explicit witnessing counterexamples, so that future investigators need not repeat this work; and a striking auxiliary result whose naive extrapolation directly conflicts with our main conjecture at the very next unverified value, $n=8$ --- a discrepancy we present honestly as unresolved, since at the time of writing $T(8)$ has not been independently computed.
+
+We hope this paper is useful in two ways: as a source of exact data and rigorous partial results for anyone attempting to complete the proof, and as a case study in how far one can push a computational-plus-structural investigation of a discrete optimization puzzle before hitting a genuine wall, together with a candid account of exactly where that wall is.
+
+\subsection{Organization} Section~\ref{sec:prelim} sets notation and reports the exact values of $T(n)$ for $n\le 7$. Section~\ref{sec:formula} states the main conjecture and gives an elementary closed form for its correction term $S(n)$. Section~\ref{sec:lowerbound} proves the baseline displacement lower bound and an exact accounting identity. Section~\ref{sec:wiring} develops a reformulation of the problem in terms of reduced words for the longest element of a symmetric group, proves a new lemma about three-wire crossings, and explains precisely why this reformulation, as far as we have been able to push it, does not yield the full conjectured bound. Section~\ref{sec:ruledout} catalogues further proof strategies we have ruled out, each with an explicit counterexample. Section~\ref{sec:wall} introduces an auxiliary subproblem for which we prove an exact formula, and reports the 50\%-absorption phenomenon and its unresolved tension with the main conjecture at $n=8$. Section~\ref{sec:open} collects open problems.
+
+\section{Preliminaries and exact values}
+\label{sec:prelim}
+
+\begin{definition}
+For a positive integer $n$, an \emph{$n$-bin configuration} is an assignment, to each of $n$ bins indexed $1,\dots,n$, of an unordered pair (with repetition) of labels from $\{1,\dots,n\}$, such that each label $1,\dots,n$ occurs in exactly two bins total (counting multiplicity). The \emph{start configuration} has bin $i$ containing $\{n+1-i,n+1-i\}$ for each $i$. The \emph{target configuration} has bin $i$ containing $\{i,i\}$ for each $i$.
+
+A \emph{move} at boundary $i$ (for $1\le i\le n-1$) selects one ball from bin $i$ and one ball from bin $i+1$ and exchanges their bins. Let $T(n)$ denote the minimum number of moves required to transform the start configuration into the target configuration.
+\end{definition}
+
+We computed $T(n)$ exactly for $n\le 7$ using exhaustive breadth-first search over the full reachable configuration graph, cross-validated by an independent bidirectional BFS implementation. Table~\ref{tab:exact} lists the results together with the size of the reachable state space explored.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}crr@{}}
+\toprule
+$n$ & $T(n)$ & reachable states \\
+\midrule
+1 & 0 & 1 \\
+2 & 2 & 3 \\
+3 & 5 & 21 \\
+4 & 10 & 282 \\
+5 & 15 & 6{,}210 \\
+6 & 23 & 202{,}410 \\
+7 & 31 & $\sim 8\times 10^{6}$ (bidirectional meeting point) \\
+\bottomrule
+\end{tabular}
+\caption{Exact values of $T(n)$, $1\le n\le 7$.}
+\label{tab:exact}
+\end{table}
+
+Attempts to extend Table~\ref{tab:exact} to $n=8$ by the same exhaustive methods, even after substantial optimization (compact state encoding, open-addressing hash tables, bidirectional search), have not completed within the memory and time available to us; reachable-state counts in excess of $10^{8}$ were reached without termination. We regard $T(8)$ as currently unknown by exhaustive computation, and we return to why this matters in Section~\ref{sec:wall}.
+
+\section{The conjectured formula}
+\label{sec:formula}
+
+\begin{conjecture}
+\label{conj:main}
+For all $n\ge 1$,
+\[
+T(n) = \left\lfloor \frac{n^2}{2}\right\rfloor + S(n), \qquad S(n) := \sum_{k=2}^n \left\lfloor \frac{k}{3}\right\rfloor.
+\]
+\end{conjecture}
+
+Conjecture~\ref{conj:main} is verified exactly against every entry of Table~\ref{tab:exact}. It is not, at present, proved; we regard establishing it as the central open problem of this line of work.
+
+The correction term $S(n)$ admits a fully elementary closed form.
+
+\begin{theorem}
+\label{thm:closedform}
+Write $n = 3q+r$ with $q=\lfloor n/3\rfloor$ and $r\in\{0,1,2\}$. Then
+\[
+S(n) = \frac{3q(q-1)}{2} + q(r+1) =
+\begin{cases}
+\dfrac{q(3q-1)}{2}, & r=0,\\[4pt]
+\dfrac{q(3q+1)}{2}, & r=1,\\[4pt]
+\dfrac{3q(q+1)}{2}, & r=2.
+\end{cases}
+\]
+\end{theorem}
+
+\begin{proof}
+Since $\lfloor 0/3\rfloor = \lfloor 1/3\rfloor = 0$, we have $S(n) = \sum_{k=0}^{n}\lfloor k/3\rfloor$. For $k=0,\dots,n$, the value $\lfloor k/3\rfloor$ equals $j$ for exactly the three consecutive integers $k=3j,3j+1,3j+2$ whenever $3j+2\le n$, and additionally for $k=3q,\dots,3q+r$ ($r+1$ values) at the top when $r<2$. Summing,
+\[
+\sum_{k=0}^{n}\left\lfloor\frac{k}{3}\right\rfloor = 3\sum_{j=0}^{q-1} j \;+\; q(r+1) = 3\binom{q}{2} + q(r+1) = \frac{3q(q-1)}{2}+q(r+1).
+\]
+Substituting $r=0,1,2$ gives the three displayed cases. \qedhere
+\end{proof}
+
+\begin{remark}
+Combined with the elementary fact that $\lfloor n^2/2\rfloor$ depends only on the parity of $n$, Theorem~\ref{thm:closedform} allows $T(n)$, under Conjecture~\ref{conj:main}, to be written as an explicit quadratic polynomial in $t$ once the residue of $n$ modulo $6$ is fixed. For instance, writing $n=6t+r'$ for $r'=0,\dots,5$ gives $T(n) = 24t^2+c_1(r')t+c_0(r')$ for explicit constants; e.g. $T(6t)=24t^2-t$ and $T(6t+1)=24t^2+7t$. We omit the routine remaining cases.
+\end{remark}
+
+\begin{corollary}
+\label{cor:asymptotics}
+Under Conjecture~\ref{conj:main}, $T(n) = \tfrac{2}{3}n^2 + O(n)$.
+\end{corollary}
+
+\section{A proven lower bound and an exact accounting identity}
+\label{sec:lowerbound}
+
+\begin{definition}
+For a configuration $\sigma$, let $D(\sigma) = \sum_{\text{balls}} |\,\text{current bin} - \text{target bin}\,|$, the total displacement.
+\end{definition}
+
+\begin{lemma}
+\label{lem:displacement}
+$D(\text{start}) = 2\lfloor n^2/2\rfloor$, and $D(\text{target})=0$. Every move changes $D$ by exactly $-2$, $0$, or $+2$.
+\end{lemma}
+
+\begin{proof}
+$D(\text{start}) = 2\sum_{i=1}^n |2i-n-1|$, a standard sum equal to $2\lfloor n^2/2\rfloor$. A move exchanges one ball from bin $i$ with one from bin $i+1$; each of the two balls moves exactly one bin, so its individual contribution to $D$ changes by $\pm 1$ according to whether it moves toward or away from its target (or, if already at its target, necessarily away, i.e.\ $+1$). Summing the two independent $\pm 1$ contributions gives a total change in $\{-2,0,+2\}$.
+\end{proof}
+
+Call a move \emph{useful} if $D$ decreases by $2$, \emph{neutral} if $D$ is unchanged, and \emph{regressive} if $D$ increases by $2$.
+
+\begin{theorem}[Exact accounting identity]
+\label{thm:accounting}
+Let a complete sequence of moves from start to target use $u$ useful, $z$ neutral, and $p$ regressive moves. Then
+\[
+u - p = \left\lfloor \frac{n^2}{2}\right\rfloor \qquad\text{and}\qquad T = u+z+p = \left\lfloor\frac{n^2}{2}\right\rfloor + z + 2p,
+\]
+where $T$ denotes the length of the sequence. In particular this holds for \emph{every} complete sequence, not only an optimal one.
+\end{theorem}
+
+\begin{proof}
+Telescoping $D$ along the sequence gives $D(\text{target})-D(\text{start}) = -2u+2p$, and by Lemma~\ref{lem:displacement} this equals $-2\lfloor n^2/2\rfloor$. Solving gives $u-p=\lfloor n^2/2\rfloor$, and substituting into $T=u+z+p$ gives the second identity.
+\end{proof}
+
+\begin{corollary}
+\label{cor:baseline}
+$T(n) \ge \lfloor n^2/2\rfloor$ for all $n$.
+\end{corollary}
+
+Theorem~\ref{thm:accounting} reduces Conjecture~\ref{conj:main} to a single strategy-independent inequality.
+
+\begin{proposition}
+\label{prop:reduction}
+Conjecture~\ref{conj:main} is equivalent to the assertion that every complete sequence of moves satisfies
+\[
+z + 2p \;\ge\; S(n).
+\]
+\end{proposition}
+
+We were unable to prove Proposition~\ref{prop:reduction}'s inequality in general; the remainder of the paper documents both partial progress toward it and a substantial catalogue of approaches that fail.
+
+We do, however, have one further elementary lower bound, sufficient to slightly strengthen Corollary~\ref{cor:baseline} for odd $n$.
+
+\begin{lemma}
+\label{lem:oddstart}
+For odd $n\ge 3$, no move available from the start configuration is useful. Consequently $T(n)\ge \lfloor n^2/2\rfloor + 1$ for odd $n\ge 3$.
+\end{lemma}
+
+\begin{proof}
+At the start configuration, bin $i$ contains label $n+1-i$. A move at boundary $i$ is useful precisely when bin $i$ contains a ball wanting to move right (target bin $>i$, i.e.\ $n+1-i>i$, i.e.\ $i<\frac{n+1}{2}$) and bin $i+1$ contains a ball wanting to move left (target bin $<i+1$, i.e.\ $n-i<i+1$, i.e.\ $i>\frac{n-1}{2}$). Both conditions hold simultaneously only for $i$ in the open interval $\left(\frac{n-1}{2},\frac{n+1}{2}\right)$, an interval of length $1$. When $n$ is odd, both endpoints are integers, so the open interval contains no integer, and no boundary is useful. Hence the first move of any sequence is neutral or regressive, contributing at least $1$ to $z+2p$, and the claim follows from Theorem~\ref{thm:accounting}.
+\end{proof}
+
+\begin{remark}
+The corresponding computation for even $n$ shows exactly one boundary, $i=n/2$, is useful at the start. This asymmetry between odd and even $n$ does not, by itself, explain the full magnitude of $S(n)$, which grows quadratically; see the discussion in Section~\ref{sec:ruledout}.
+\end{remark}
+
+\section{A reduced-word reformulation, and its limits}
+\label{sec:wiring}
+
+In this section we develop an exact reformulation of the problem in the language of reduced words for the longest element of a symmetric group, prove a genuinely new lemma within that framework, and then explain, with a supporting negative result, why this framework --- at least via the routes we have explored --- does not by itself resolve Proposition~\ref{prop:reduction}.
+
+\subsection{The correspondence}
+
+Let $N=2n$. Assign to the two balls initially in bin $i$ the \emph{wire labels} $2i-1$ and $2i$ (in either order). A configuration is then equivalent to an assignment of the $N$ wires to $N$ \emph{slots} $1,\dots,N$, where slots $2i-1,2i$ constitute bin $i$, together with a choice, for each bin, of which of its two wires occupies the lower-numbered slot; the latter choice carries no physical meaning; it is a bookkeeping convention.
+
+\begin{proposition}
+\label{prop:correspondence}
+A real move at boundary $i$ corresponds to using the transposition (Coxeter generator) $s_{2i}$ of $S_N$ exactly once, optionally preceded and/or followed by transpositions $s_{2i-1}$ or $s_{2i+1}$ (relabelings within a bin, which are not physical moves and cost nothing). Consequently, writing $H=\langle s_1,s_3,\dots,s_{N-1}\rangle\cong(\mathbb{Z}/2)^n$ for the abelian group generated by the odd-indexed generators, we have
+\[
+T(n) = c(w_0),
+\]
+where $w_0\in S_N$ is the longest element (full reversal, $w_0(p)=N+1-p$), and $c(w_0)$ denotes the minimum number of even-indexed generators occurring in any expression for $w_0$ as a word in $s_1,\dots,s_{N-1}$ that is reduced when the odd-indexed letters are freely discarded.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+The claim that a real move corresponds to exactly one even generator, freely surrounded by odd generators, follows from the canonicalization described above. The set of ``bin-respecting'' target permutations (those compatible with the target configuration under some choice of within-bin orderings) forms a single double coset $Hw_0H$, since all such permutations induce the same map on bins (full reversal) and $H$ acts by independently permuting within each bin. Because $H$-factors can be freely inserted immediately before and after any real move (this uses that $H$ is generated by pairwise-commuting involutions with disjoint supports), the minimum cost $c(\rho)$ is constant across the double coset $Hw_0H$, and equals $c(w_0)$.
+\end{proof}
+
+We independently verified Proposition~\ref{prop:correspondence} by computing $c(w_0)$ via a dynamic program over the weak order of $S_N$ --- a computation entirely disjoint from the bin-configuration search of Section~\ref{sec:prelim} --- and found exact agreement with Table~\ref{tab:exact} for $n=1,\dots,5$.
+
+We use the following standard fact without proof (it follows from the exchange condition for Coxeter groups, or directly by induction on word length).
+
+\begin{proposition}[Standard]
+\label{prop:reducedwords}
+In any reduced word for $w_0\in S_N$, every pair of indices $a<b$ has its wires cross exactly once.
+\end{proposition}
+
+\subsection{A new lemma on three-wire crossings}
+
+\begin{lemma}[Triple sandwiching]
+\label{lem:tripleF}
+Let $a<b<c$ be wire indices. In any reduced word for $w_0$, the crossing of wires $a$ and $c$ occurs, in time, strictly between the crossings of $a,b$ and of $b,c$.
+\end{lemma}
+
+\begin{proof}
+The relative order of $\{a,b,c\}$ among themselves changes only at crossings involving two of these three wires; crossings involving an outside wire leave their mutual order unaffected. Restricted to these three wires, the induced sub-word is therefore a reduced word for the reversal of $(a,b,c)$, i.e.\ for the longest element of $S_3$, whose only two reduced words are $s_1s_2s_1$ and $s_2s_1s_2$. Translating back, these correspond to the crossing orders $(a,b),(a,c),(b,c)$ and $(b,c),(a,c),(a,b)$ respectively; in both, $(a,c)$ occurs strictly between the other two.
+\end{proof}
+
+We verified Lemma~\ref{lem:tripleF} computationally against every triple of wires in the optimal reduced word for $w_0$ (for $n=2,3,4$) and additionally against a deliberately \emph{non}-optimal reduced word (the standard bubble-sort word, for $n=2,\dots,5$), finding zero violations in every case, confirming that the lemma is a property of \emph{all} reduced words, not merely optimal ones.
+
+\subsection{Why this framework alone does not suffice}
+
+The cost function $c(w_0)$ depends on the \emph{position} (which generator) at which each crossing occurs, whereas Lemma~\ref{lem:tripleF} constrains only the \emph{temporal order} of crossings. We investigated, and rule out, two natural ways of converting temporal information into positional information.
+
+\begin{proposition}
+\label{prop:betweenness_fails}
+It is not true that, in a reduced word for $w_0$, the position $\kappa(a,c)$ of the crossing of $a,c$ lies between $\kappa(a,b)$ and $\kappa(b,c)$ for all $a<b<c$; nor is it true that $\kappa(a,c)=\kappa(a,b)+\kappa(b,c)$.
+\end{proposition}
+
+\begin{proof}[Evidence]
+For $N=4$, the optimal reduced word yields $\kappa(1,2)=1,\kappa(2,3)=1,\kappa(1,3)=2$ (already outside the interval $[1,1]$, refuting betweenness on all four triples of the smallest nontrivial case) while coincidentally satisfying additivity. Additivity itself fails for $N=6$: only $5$ of the $20$ triples satisfy $\kappa(a,c)=\kappa(a,b)+\kappa(b,c)$, and the fraction does not improve at $N=8,10$.
+\end{proof}
+
+\begin{proposition}
+\label{prop:aggregate_fails}
+For $A_b := \#\{a<b<c : \kappa(a,c) \text{ is even}\}$, there is no universal constant $L_b>0$ with $A_b \ge L_b$ for every reduced word.
+\end{proposition}
+
+\begin{proof}[Evidence]
+For $N=4$, the reduced word $[(2,2,3),(1,1,3),(2,1,2),(3,1,4),(2,2,4),(1,3,4)]$ (generator index, wire, wire) achieves $A_2=0$.
+\end{proof}
+
+We regard Propositions~\ref{prop:betweenness_fails} and \ref{prop:aggregate_fails} as establishing that Lemma~\ref{lem:tripleF}, while a genuine and previously unrecorded structural fact about reduced words for $w_0$, does not by itself carry enough positional information to prove Proposition~\ref{prop:reduction}. We were also unable to obtain any nontrivial bound from single-wire arguments alone.
+
+\begin{proposition}
+\label{prop:singlewire}
+Using only the constraint that wire $k$ (for $1\le k\le N$) participates in exactly $N-k$ rightward and $k-1$ leftward crossings (forced by its endpoints $k \to N+1-k$), the best lower bound obtainable on $c(w_0)$ is exactly $\lfloor n^2/2\rfloor$, recovering Corollary~\ref{cor:baseline} and nothing more.
+\end{proposition}
+
+\section{Further ruled-out approaches}
+\label{sec:ruledout}
+
+We record here, in the interest of sparing future investigators duplicated effort, several further natural strategies that we investigated and rejected, in each case via an explicit witness.
+
+\begin{proposition}[Local potentials do not suffice]
+\label{prop:LPfails}
+Let $\Phi$ be any linear combination of the following $34$ features of a configuration: counts of each of the six possible bin ``type'' patterns (home/home, right/right, left/left, right/left, right/home, left/home) refined by bin-index residue mod $3$; counts of blocked boundaries refined by boundary-index residue mod $3$; a histogram of ball-displacement residues mod $3$; and counts of rightward/leftward-active bins refined by parity of bin index. Requiring $\Phi(\text{ns})-\Phi(s) \le w(\text{move})$ (with $w=0,1,2$ for useful, neutral, regressive moves respectively) for \emph{every} directed edge of the full reachable configuration graph, the maximum provable value of $\Phi(\text{target})-\Phi(\text{start})$ is exactly $0$, for $n=3,4,5$, including after removing all regressive edges from the constraint set.
+\end{proposition}
+
+\begin{proof}[Method]
+Formulated as a linear program (features as columns, one constraint per directed edge of the exhaustively enumerated reachable graph) and solved with a standard LP solver; verified the result is not an artifact of coefficient bounds by re-solving with bounds enlarged by four orders of magnitude, obtaining the same value.
+\end{proof}
+
+\begin{proposition}[Pure local greedy is not optimal]
+\label{prop:greedyfails}
+The rule ``if any useful move is available, perform one (arbitrary tie-break), otherwise perform an arbitrary move'' does not reliably reach $T(n)$ for $n\ge 5$: in $20$ independent random tie-breaking trials each for $n=5,6$, the rule never once matched the true optimum (best of $20$ trials: $20$ vs.\ true value $15$ for $n=5$; $29$ vs.\ true value $23$ for $n=6$).
+\end{proposition}
+
+\begin{proposition}[Bin-removal induction fails]
+\label{prop:removalfails}
+It is not true that an optimal solution for $n$ bins restricts, on the ``inner'' bins $2,\dots,n-1$, to an optimal (or even a valid, self-contained) solution for the corresponding $(n-2)$-bin problem. In an optimal solution for $n=6$, a ball whose label belongs to an inner bin is observed to visit an outer bin (bin $1$) at an intermediate step.
+\end{proposition}
+
+\begin{proposition}[Waste is not equivalent to total blockage]
+\label{prop:blockagefails}
+It is not true that every neutral or regressive move occurs only when \emph{no} boundary admits a useful move. In the optimal solutions found for $n=4$ and $n=6$, several neutral moves occur while a useful move is available at another boundary.
+\end{proposition}
+
+We also isolated a precise mechanism explaining, in part, why Proposition~\ref{prop:LPfails} must fail for \emph{any} choice of bin-type-count features, however refined.
+
+\begin{lemma}[Type preservation]
+\label{lem:typepreservation}
+Suppose bins $i,i+1$ both consist of two balls each wanting to move right (a ``pure-RR'' pair). A move transferring a ball from bin $i+1$ to bin $i$ always leaves bin $i$ pure-RR. A move transferring a ball from bin $i$ to bin $i+1$ leaves bin $i+1$ pure-RR unless the transferred ball's target is exactly bin $i+1$, in which case bin $i+1$ becomes mixed. The symmetric statement holds for adjacent pure-LL bins.
+\end{lemma}
+
+\begin{proof}
+If bin $i+1$ is pure-RR, every ball in it has target $>i+1$, hence target $>i$ as well; such a ball, moved to bin $i$, still wants to move right. This proves the first claim. For the second, a ball in bin $i$ with target $>i$ moved to bin $i+1$ either still has target $>i+1$ (remains right-wanting) or has target exactly $i+1$ (becomes home).
+\end{proof}
+
+Lemma~\ref{lem:typepreservation} shows that certain neutral moves change \emph{which specific labels} occupy a bin while leaving its type profile (home/right/left) entirely unchanged; such moves are, by construction, invisible to any potential built from bin-type counts, however finely refined by residues, which is precisely the obstruction witnessed numerically in Proposition~\ref{prop:LPfails}.
+
+\section{An auxiliary wall-crossing problem}
+\label{sec:wall}
+
+Motivated by Lemma~\ref{lem:typepreservation}, we isolated a smaller, precisely defined subproblem intended to capture the cost of routing traffic across a block of otherwise-resolved bins.
+
+\begin{definition}
+\label{def:wallproblem}
+For $L\ge 0$, the \emph{wall problem of length $L$} has $L+2$ bins. Bin $0$ starts with two balls labeled $A$ (target: bin $L+1$); bin $L+1$ starts with two balls labeled $B$ (target: bin $0$); each bin $j$, $1\le j\le L$, starts with two balls labeled $j$, with target bin $j$ (i.e.\ already correctly placed). Let $T_{\mathrm{wall}}(L)$ be the minimum number of moves to reach the configuration with bin $0=\{B,B\}$, bin $L+1=\{A,A\}$, and every middle bin restored to $\{j,j\}$.
+\end{definition}
+
+\begin{theorem}
+\label{thm:wallformula}
+$T_{\mathrm{wall}}(0)=2$, $T_{\mathrm{wall}}(1)=5$, and $T_{\mathrm{wall}}(L) = 4L$ for all $L\ge 2$.
+\end{theorem}
+
+We verified Theorem~\ref{thm:wallformula} by exact (bidirectional) breadth-first search for $L=0,\dots,6$, using two independent implementations (Python and C++, the latter using open-addressing hash tables for memory efficiency), which agreed exactly. We regard the formula as established with very high confidence for $L\le 6$; we have not proved it for general $L$, though the pattern is clean and the case $L\ge 2$ is linear with no further irregularity across five consecutive confirmed values.
+
+\begin{observation}
+The optimal move sequence found for $L=3$ has a striking two-phase structure: the first $4$ moves (exactly $2L-2$) are all neutral, achieved via successive full pairwise exchanges of adjacent bins' contents; the remaining $8$ moves (exactly the displacement baseline $2(L+1)$) are all useful. This priming-then-useful pattern was also visible, qualitatively, in the smallest optimal solutions of the main problem itself ($n=3,4,5$).
+\end{observation}
+
+\subsection{A nested nested experiment and an unresolved discrepancy at $n=8$}
+
+We generalized Definition~\ref{def:wallproblem} by replacing the $L$ trivially-home middle bins with an active size-$m$ reversal sub-instance (for $1\le m\le L$), occupying the first $m$ of the $L$ gap bins, with any remaining $L-m$ bins trivial as before. Writing $\ex(L,m)$ for the resulting excess above the displacement baseline, we computed $\ex(L,m)$ exactly for all $0\le m\le L\le 5$. Two consistency checks passed in every case: $\ex(L,0)=\ex(L,1)=g(L):=T_{\mathrm{wall}}(L)-2(L+1)$ (a size-$1$ reversal is trivial), and $\ex(L,L) = S(L+2)$, recovering the known values of Table~\ref{tab:exact} exactly, as it must since $m=L$ reduces the construction to the original $(L+2)$-bin problem.
+
+Define $\mathrm{additional}(L) := S(L+2)-S(L)$, the marginal excess attributable to the outer pair crossing an \emph{active} interior, using only already-verified data (no extrapolation).
+
+\begin{observation}[50\% absorption]
+\label{obs:absorption}
+For $L=3,4,5$, $\mathrm{additional}(L) = L-1$, exactly half of $g(L)=2L-2$. (For $L=1,2$, $\mathrm{additional}(L)=g(L)$, i.e.\ no absorption, consistent with the interior having negligible structure at these sizes.)
+\end{observation}
+
+Observation~\ref{obs:absorption} is a clean, striking pattern, and we have a plausible qualitative explanation for it (roughly: when the interior has its own genuine task, a middle ball displaced in the direction it already needed to travel costs nothing extra, while displacement in the opposite direction remains pure waste, suggesting a natural $50\%$ split) but no proof.
+
+More importantly, Observation~\ref{obs:absorption}, if extrapolated one further step to $L=6$ (i.e.\ $n=8$), predicts
+\[
+\mathrm{additional}(6) = 5 \implies S(8) = S(6)+5 = 5+5 = 10,
+\]
+whereas Conjecture~\ref{conj:main}, via the closed form of Theorem~\ref{thm:closedform}, predicts
+\[
+S(8) = S(7) + \left\lfloor \tfrac{8}{3}\right\rfloor = 7+2 = 9.
+\]
+
+\begin{openproblem}
+\label{open:n8}
+Determine $T(8)$ (equivalently $S(8)$) independently, and thereby resolve whether $S(8)=9$ (consistent with Conjecture~\ref{conj:main}) or $S(8)=10$ (consistent with a naive extrapolation of Observation~\ref{obs:absorption}), or neither.
+\end{openproblem}
+
+We regard Open Problem~\ref{open:n8} as the single most valuable immediate next computation for this line of work: both live hypotheses are supported by exact, non-extrapolated data at every point checked so far, and they make different, mutually exclusive predictions at the very next value. We emphasize that Observation~\ref{obs:absorption} is exactly that --- an observation drawn from five confirmed data points ($L=1,\dots,5$) --- and not a theorem; we present the resulting tension as a demonstration of the danger of extrapolating even a very clean-looking finite pattern, rather than as evidence against Conjecture~\ref{conj:main}, which remains, in our judgment, the better-supported of the two hypotheses by virtue of resting on seven confirmed values rather than five.
+
+\section{Discussion and open problems}
+\label{sec:open}
+
+We summarize the logical status of every claim in this paper, to guard against the conjectural and the proven being conflated.
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Proved}: Table~\ref{tab:exact} (exhaustive search); Theorem~\ref{thm:closedform} (closed form for $S(n)$); Lemma~\ref{lem:displacement}, Corollary~\ref{cor:baseline}, Theorem~\ref{thm:accounting}, Proposition~\ref{prop:reduction} (the baseline bound and accounting identity); Lemma~\ref{lem:oddstart} (odd-$n$ strengthening); Proposition~\ref{prop:correspondence} and Lemma~\ref{lem:tripleF} (the reduced-word reformulation and the triple-sandwiching lemma); Lemma~\ref{lem:typepreservation} (type preservation); Propositions~\ref{prop:betweenness_fails}, \ref{prop:aggregate_fails}, \ref{prop:LPfails}, \ref{prop:greedyfails}, \ref{prop:removalfails}, \ref{prop:blockagefails} (each a rigorously witnessed negative/insufficiency result).
+\item \textbf{Exhaustively verified for stated small cases, not proved in general}: Conjecture~\ref{conj:main} ($n\le 7$); Theorem~\ref{thm:wallformula} ($L\le 6$).
+\item \textbf{Observed pattern from exact data, explicitly not claimed as a theorem}: Observation~\ref{obs:absorption}, whose naive extrapolation conflicts with Conjecture~\ref{conj:main} at $n=8$ (Open Problem~\ref{open:n8}).
+\end{itemize}
+
+The central open problem remains proving (or disproving) Proposition~\ref{prop:reduction}'s inequality $z+2p\ge S(n)$ for every complete sequence of moves. We list what we regard as the most promising remaining directions, in rough order of how much of this paper's machinery they would reuse.
+
+\begin{openproblem}
+Find a strategy-independent argument --- not resting on any single-wire, aggregate-parity, or local-potential technique, all of which are ruled out by Section~\ref{sec:ruledout} and Section~\ref{sec:wiring} --- proving $z+2p\ge S(n)$.
+\end{openproblem}
+
+\begin{openproblem}
+Prove Theorem~\ref{thm:wallformula} for general $L$ (we have only verified it for $L\le 6$), and determine whether the nested generalization of Section~\ref{sec:wall} admits an exact recursive formula for $\ex(L,m)$.
+\end{openproblem}
+
+\begin{openproblem}
+Resolve Open Problem~\ref{open:n8}. More generally, determine whether $S(n)-S(n-2)$ follows the sum-of-floors pattern of Conjecture~\ref{conj:main} or the linear pattern suggested by Observation~\ref{obs:absorption}, or discover the correct formula reconciling both bodies of evidence.
+\end{openproblem}
+
+\begin{openproblem}
+Determine whether $p=0$ in every optimal solution (observed in every optimal trace examined in this work, for $n\le 6$, but not proved in general).
+\end{openproblem}
+
+\section*{Acknowledgments}
+
+We thank Peter Winkler for posing this puzzle in \cite{Winkler}, and acknowledge the methodological debt this work owes to \cite{MaitreD} for demonstrating that a puzzle from Winkler's ``Unsolved Puzzles'' chapter can be fully resolved by a combination of careful combinatorial structure and computation; we regret that we have, so far, only partially succeeded in following that example.
+
+\begin{thebibliography}{9}
+
+\bibitem{Winkler} P.~Winkler, \emph{Mathematical Puzzles: A Connoisseur's Collection}, A K Peters, Natick, MA, 2004.
+
+\bibitem{MaitreD} T.~V.~Madhavarapu, \emph{The Most Malicious Ma\^itre D'}, arXiv:2407.09000 (2025).
+
+\end{thebibliography}
+
+\end{document}
