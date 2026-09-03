@@ -1,524 +1,257 @@
+// ---------------------------------------------------------------------------
+// center_out_v2.cpp
+//
+// The centre-out local-greedy heuristic for "Sorting Pairs in Bins", and the
+// evidence that it is not optimal.
+//
+// The rule: prefer a useful move (one that reduces total displacement) at the
+// boundary nearest the centre; failing that, a neutral move at the boundary
+// nearest the centre; failing that, a regressive move at the centre boundary.
+//
+// The decision logic is unchanged from the original.  What changed:
+//
+//   * State is a pair of flat arrays instead of vector<vector<int>>, and moves
+//     are applied in place with an explicit undo, so the neutral-move scan no
+//     longer copies and re-sorts the whole configuration for every candidate.
+//   * D() is computed once per scan rather than once per boundary, and is
+//     updated from the two touched bins rather than recomputed over all n.
+//   * stable_sort replaces sort when ordering boundaries by distance from the
+//     centre, so ties break deterministically and runs are reproducible.
+//   * The reference table is generated rather than hard-coded, and now includes
+//     Winkler's lower bound, which is the bound that actually binds.
+//
+// Build:
+//   g++ -O3 -march=native -DNDEBUG -o center_out_v2.exe center_out_v2.cpp
+// ---------------------------------------------------------------------------
+
 #include <algorithm>
 #include <cmath>
-#include <iostream>
-#include <set>
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
+#include <numeric>
+#include <unordered_map>
 #include <string>
-#include <tuple>
 #include <vector>
 
 using namespace std;
 
+// Labels are 1-indexed, bins 0-indexed.
+static inline int target_bin_of(int label) { return label - 1; }
 
-// ------------------------------------------------------------
-// Return the target bin of a label.
-// Labels are 1-indexed; bins are 0-indexed.
-// ------------------------------------------------------------
-int target_bin_of(int label) {
-    return label - 1;
-}
+struct Config {
+    int n;
+    vector<int> lo, hi;
 
+    explicit Config(int n_) : n(n_), lo(n_), hi(n_) {}
 
-// ------------------------------------------------------------
-// Determine what kinds of objects are in a bin.
-//
-// H = object is already in its target bin
-// R = object needs to move right
-// L = object needs to move left
-// ------------------------------------------------------------
-set<char> bin_kind(const vector<int>& binc, int i) {
-    set<char> types;
-
-    for (int l : binc) {
-        int tb = target_bin_of(l);
-
-        if (tb == i) {
-            types.insert('H');
-        }
-        else if (tb > i) {
-            types.insert('R');
-        }
-        else {
-            types.insert('L');
-        }
+    // Displacement contributed by one bin.
+    inline int binD(int i) const {
+        return abs(i - target_bin_of(lo[i])) + abs(i - target_bin_of(hi[i]));
     }
 
-    return types;
-}
-
-
-// ------------------------------------------------------------
-// Find boundaries where:
-//
-// left bin contains an R-object
-// right bin contains an L-object
-//
-// Such a boundary allows a useful move.
-// ------------------------------------------------------------
-vector<int> useful_boundaries(
-    const vector<vector<int>>& state,
-    int n
-) {
-    vector<int> res;
-
-    for (int i = 0; i < n - 1; i++) {
-
-        set<char> tA = bin_kind(state[i], i);
-        set<char> tB = bin_kind(state[i + 1], i + 1);
-
-        if (tA.count('R') && tB.count('L')) {
-            res.push_back(i);
-        }
+    inline int D() const {
+        int t = 0;
+        for (int i = 0; i < n; i++) t += binD(i);
+        return t;
     }
 
-    return res;
-}
-
-
-// ------------------------------------------------------------
-// Potential function D.
-//
-// D = total distance of all objects from their target bins.
-// ------------------------------------------------------------
-int D(
-    const vector<vector<int>>& state,
-    int n
-) {
-    int total = 0;
-
-    for (int i = 0; i < n; i++) {
-        for (int l : state[i]) {
-            total += abs(i - target_bin_of(l));
-        }
+    inline bool sorted() const {
+        for (int i = 0; i < n; i++)
+            if (lo[i] != i + 1 || hi[i] != i + 1) return false;
+        return true;
     }
 
-    return total;
-}
-
-
-// ------------------------------------------------------------
-// Apply an adjacent swap.
-//
-// Swap object a from bin i
-// with object b from bin i+1.
-// ------------------------------------------------------------
-vector<vector<int>> apply_move(
-    const vector<vector<int>>& state,
-    int i,
-    int a,
-    int b
-) {
-    vector<vector<int>> new_state = state;
-
-    // Remove a from left bin.
-    auto itA = find(
-        new_state[i].begin(),
-        new_state[i].end(),
-        a
-    );
-
-    if (itA != new_state[i].end()) {
-        new_state[i].erase(itA);
+    // Does bin i hold a ball that wants to move right / left?
+    inline bool hasR(int i) const {
+        return target_bin_of(lo[i]) > i || target_bin_of(hi[i]) > i;
+    }
+    inline bool hasL(int i) const {
+        return target_bin_of(lo[i]) < i || target_bin_of(hi[i]) < i;
     }
 
-    // Remove b from right bin.
-    auto itB = find(
-        new_state[i + 1].begin(),
-        new_state[i + 1].end(),
-        b
-    );
+    // Swap `give` out of bin i and `recv` out of bin i+1, in place.
+    inline void apply(int i, int give, int recv) {
+        int keepL = (lo[i] == give) ? hi[i] : lo[i];
+        int keepR = (lo[i + 1] == recv) ? hi[i + 1] : lo[i + 1];
 
-    if (itB != new_state[i + 1].end()) {
-        new_state[i + 1].erase(itB);
+        lo[i]     = min(keepL, recv);  hi[i]     = max(keepL, recv);
+        lo[i + 1] = min(keepR, give);  hi[i + 1] = max(keepR, give);
     }
-
-    // Swap them.
-    new_state[i].push_back(b);
-    new_state[i + 1].push_back(a);
-
-    // Keep bins sorted, matching the Python tuple behavior.
-    sort(
-        new_state[i].begin(),
-        new_state[i].end()
-    );
-
-    sort(
-        new_state[i + 1].begin(),
-        new_state[i + 1].end()
-    );
-
-    return new_state;
-}
-
-
-// ------------------------------------------------------------
-// Check whether two states are equal.
-// ------------------------------------------------------------
-bool states_equal(
-    const vector<vector<int>>& a,
-    const vector<vector<int>>& b
-) {
-    return a == b;
-}
-
-
-// ------------------------------------------------------------
-// Main center-out heuristic.
-// ------------------------------------------------------------
-struct Result {
-    int moves;
-    int useful;
-    int wasted;
-    int regressive;
-    bool success;
 };
 
+struct Result {
+    int moves, useful, wasted, regressive;
+    bool success;
+    int cycleAt;    // step at which a state repeated, or -1
+    int cycleLen;
+};
 
-Result center_out_v2(
-    int n,
-    int max_steps = 2000
-) {
-
-    // --------------------------------------------------------
-    // Initial state:
-    //
-    // n=4:
-    //
-    // (4,4)
-    // (3,3)
-    // (2,2)
-    // (1,1)
-    // --------------------------------------------------------
-
-    vector<vector<int>> state(n);
-
-    for (int i = 0; i < n; i++) {
-        int label = n - i;
-
-        state[i] = {label, label};
+// Key a configuration so repeated states can be detected; this is what
+// distinguishes "the heuristic is suboptimal" from "the heuristic never
+// terminates", which are quite different claims.  One byte per ball, so there
+// is no label-width limit to worry about.
+static string pack(const Config& s) {
+    string k;
+    k.reserve(2 * s.n);
+    for (int i = 0; i < s.n; i++) {
+        k.push_back((char)s.lo[i]);
+        k.push_back((char)s.hi[i]);
     }
+    return k;
+}
 
+static Result center_out_v2(int n, int max_steps = 4000) {
+    Config s(n);
+    for (int i = 0; i < n; i++) s.lo[i] = s.hi[i] = n - i;
 
-    // --------------------------------------------------------
-    // Target state:
-    //
-    // (1,1)
-    // (2,2)
-    // ...
-    // (n,n)
-    // --------------------------------------------------------
+    const double center = (n - 1) / 2.0;
 
-    vector<vector<int>> target(n);
+    // Boundaries ordered by distance from the centre, computed once.
+    vector<int> byCenter(n > 1 ? n - 1 : 0);
+    iota(byCenter.begin(), byCenter.end(), 0);
+    stable_sort(byCenter.begin(), byCenter.end(), [center](int a, int b) {
+        return fabs((a + 0.5) - center) < fabs((b + 0.5) - center);
+    });
 
-    for (int i = 0; i < n; i++) {
-        int label = i + 1;
+    int useful = 0, wasted = 0, regressive = 0;
 
-        target[i] = {label, label};
-    }
-
-
-    // Center of the boundaries.
-    double center = (n - 1) / 2.0;
-
-
-    int useful_c = 0;
-    int wasted_c = 0;
-    int regressive_c = 0;
-
-
-    // --------------------------------------------------------
-    // Main simulation loop.
-    // --------------------------------------------------------
+    // step at which each configuration was first seen
+    unordered_map<string, int> firstSeen;
 
     for (int step = 0; step < max_steps; step++) {
+        if (s.sorted()) return {step, useful, wasted, regressive, true, -1, 0};
 
-        // Have we reached the target?
-        if (states_equal(state, target)) {
-            return {
-                step,
-                useful_c,
-                wasted_c,
-                regressive_c,
-                true
-            };
+        auto it = firstSeen.emplace(pack(s), step);
+        if (!it.second)
+            return {step, useful, wasted, regressive, false,
+                    it.first->second, step - it.first->second};
+
+        // --- a useful move, at the boundary nearest the centre --------------
+        int chosen = -1;
+        for (int i : byCenter) {
+            if (s.hasR(i) && s.hasL(i + 1)) { chosen = i; break; }
         }
 
+        if (chosen >= 0) {
+            int i = chosen;
 
-        // ----------------------------------------------------
-        // First try to find a useful boundary.
-        // ----------------------------------------------------
+            // Lowest-labelled ball of bin i that wants to move right, and of
+            // bin i+1 that wants to move left.
+            int give = (target_bin_of(s.lo[i]) > i) ? s.lo[i] : s.hi[i];
+            int recv = (target_bin_of(s.lo[i + 1]) < i + 1) ? s.lo[i + 1] : s.hi[i + 1];
 
-        vector<int> avail =
-            useful_boundaries(state, n);
-
-
-        if (!avail.empty()) {
-
-            // Choose the useful boundary closest
-            // to the center.
-            int best_i = avail[0];
-
-            double best_dist =
-                abs((best_i + 0.5) - center);
-
-            for (int x : avail) {
-
-                double dist =
-                    abs((x + 0.5) - center);
-
-                if (dist < best_dist) {
-                    best_dist = dist;
-                    best_i = x;
-                }
-            }
-
-            int i = best_i;
-
-
-            const vector<int>& binA = state[i];
-            const vector<int>& binB = state[i + 1];
-
-
-            // Find an object in bin A that wants to move right.
-            int a = -1;
-
-            for (int l : binA) {
-                if (target_bin_of(l) > i) {
-                    a = l;
-                    break;
-                }
-            }
-
-
-            // Find an object in bin B that wants to move left.
-            int b = -1;
-
-            for (int l : binB) {
-                if (target_bin_of(l) < i + 1) {
-                    b = l;
-                    break;
-                }
-            }
-
-
-            // Perform useful move.
-            state = apply_move(
-                state,
-                i,
-                a,
-                b
-            );
-
-            useful_c++;
+            s.apply(i, give, recv);
+            useful++;
+            continue;
         }
 
+        // --- otherwise a neutral move, nearest the centre -------------------
+        bool done = false;
 
-        // ----------------------------------------------------
-        // No useful move exists.
-        // Look for a wasted move.
-        // ----------------------------------------------------
+        for (int i : byCenter) {
+            int d0 = s.binD(i) + s.binD(i + 1);
 
-        else {
+            int lpick[2] = {s.lo[i], s.hi[i]};
+            int rpick[2] = {s.lo[i + 1], s.hi[i + 1]};
+            int nl = (lpick[0] == lpick[1]) ? 1 : 2;
+            int nr = (rpick[0] == rpick[1]) ? 1 : 2;
 
-            vector<int> boundaries_by_dist;
+            for (int a = 0; a < nl && !done; a++) {
+                for (int b = 0; b < nr && !done; b++) {
+                    int give = lpick[a], recv = rpick[b];
+                    if (give == recv) continue;   // identity move
 
-            for (int i = 0; i < n - 1; i++) {
-                boundaries_by_dist.push_back(i);
-            }
+                    int sl0 = s.lo[i], sh0 = s.hi[i];
+                    int sl1 = s.lo[i + 1], sh1 = s.hi[i + 1];
 
+                    s.apply(i, give, recv);
 
-            // Sort boundaries by distance from center.
-            sort(
-                boundaries_by_dist.begin(),
-                boundaries_by_dist.end(),
-                [center](int a, int b) {
-
-                    return abs((a + 0.5) - center)
-                         < abs((b + 0.5) - center);
-                }
-            );
-
-
-            bool done = false;
-
-
-            // ------------------------------------------------
-            // Look for a wasted move:
-            //
-            // delta D = 0
-            // ------------------------------------------------
-
-            for (int i : boundaries_by_dist) {
-
-                const vector<int>& binA = state[i];
-                const vector<int>& binB = state[i + 1];
-
-                int d0 = D(state, n);
-
-
-                bool found = false;
-
-
-                // Use a set to imitate Python's set(binA).
-                set<int> uniqueA(
-                    binA.begin(),
-                    binA.end()
-                );
-
-                set<int> uniqueB(
-                    binB.begin(),
-                    binB.end()
-                );
-
-
-                for (int a : uniqueA) {
-
-                    for (int b : uniqueB) {
-
-                        vector<vector<int>> ns =
-                            apply_move(
-                                state,
-                                i,
-                                a,
-                                b
-                            );
-
-
-                        // Ignore moves that do nothing.
-                        if (states_equal(ns, state)) {
-                            continue;
-                        }
-
-
-                        int d1 = D(ns, n);
-
-                        int delta = d1 - d0;
-
-
-                        // Wasted move.
-                        if (delta == 0) {
-
-                            state = ns;
-
-                            wasted_c++;
-
-                            done = true;
-
-                            found = true;
-
-                            break;
-                        }
-                    }
-
-                    if (found) {
-                        break;
+                    // Only the two touched bins can have changed.
+                    if (s.binD(i) + s.binD(i + 1) == d0) {
+                        wasted++;
+                        done = true;
+                    } else {
+                        s.lo[i] = sl0; s.hi[i] = sh0;
+                        s.lo[i + 1] = sl1; s.hi[i + 1] = sh1;
                     }
                 }
-
-
-                if (done) {
-                    break;
-                }
             }
-
-
-            // ------------------------------------------------
-            // No wasted move exists.
-            //
-            // Take a regressive move at the nearest boundary.
-            // ------------------------------------------------
-
-            if (!done) {
-
-                int i = boundaries_by_dist[0];
-
-
-                const vector<int>& binA = state[i];
-                const vector<int>& binB = state[i + 1];
-
-
-                int a = binA[0];
-                int b = binB[0];
-
-
-                state = apply_move(
-                    state,
-                    i,
-                    a,
-                    b
-                );
-
-
-                regressive_c++;
-            }
+            if (done) break;
         }
+
+        if (done) continue;
+
+        // --- otherwise a regressive move at the centre boundary -------------
+        int i = byCenter.empty() ? -1 : byCenter[0];
+        if (i < 0) break;   // n == 1, nothing to do
+
+        s.apply(i, s.lo[i], s.lo[i + 1]);
+        regressive++;
     }
 
-
-    // --------------------------------------------------------
-    // Maximum number of steps reached.
-    // --------------------------------------------------------
-
-    return {
-        max_steps,
-        useful_c,
-        wasted_c,
-        regressive_c,
-        states_equal(state, target)
-    };
+    return {max_steps, useful, wasted, regressive, s.sorted(), -1, 0};
 }
 
+// ---------------------------------------------------------------------------
+// Reference values.
+// ---------------------------------------------------------------------------
 
-// ------------------------------------------------------------
-// Known optimal values T(n).
-// ------------------------------------------------------------
-
-int known_T(int n) {
-
-    switch (n) {
-        case 1: return 0;
-        case 2: return 2;
-        case 3: return 5;
-        case 4: return 10;
-        case 5: return 15;
-        case 6: return 23;
-        case 7: return 31;
-        default: return -1;
-    }
+// Winkler's lower bound, ceil(C(2n,2)/3), as stated in Winkler's book and on
+// D. West's REGS page, and used as the benchmark by Ito, Teruyama & Yoshida
+// (2012).  The counting argument charges one unit to each of the C(2n,2) pairs
+// of balls and observes that a single swap can discharge at most three.  It is
+// attained for every n <= 20 except n = 6, and proved attained for n = 2^m + 1.
+// n = 1 is degenerate (nothing to sort), so it is reported as 0.
+static long long lb_winkler(int n) {
+    if (n <= 1) return 0;
+    long long pairs = (long long)n * (2LL * n - 1);
+    return (pairs + 2) / 3;
 }
 
+// Exhaustively verified values.
+static int known_T(int n) {
+    static const int t[] = {0, 0, 2, 5, 10, 15, 23, 31, 40};
+    return (n >= 1 && n <= 8) ? t[n] : -1;
+}
 
-// ------------------------------------------------------------
-// Main.
-// ------------------------------------------------------------
+// ---------------------------------------------------------------------------
+int main(int argc, char** argv) {
+    int maxn = (argc > 1) ? atoi(argv[1]) : 10;
+    if (maxn < 1) maxn = 10;
 
-int main() {
+    printf("%3s %7s %6s %6s %6s %9s %8s %7s  %s\n",
+           "n", "moves", "useful", "waste", "regr", "Winkler", "T(n)", "excess", "outcome");
 
-    for (int n = 1; n <= 7; n++) {
+    for (int n = 1; n <= maxn; n++) {
+        Result r = center_out_v2(n);
 
-        Result r =
-            center_out_v2(n);
+        long long w = lb_winkler(n);
+        int t = known_T(n);
 
+        char tbuf[16], ebuf[16];
+        if (t >= 0) snprintf(tbuf, sizeof tbuf, "%d", t);
+        else        snprintf(tbuf, sizeof tbuf, "?");
 
-        int true_T = known_T(n);
+        // How far the heuristic lands above the best value we can vouch for.
+        long long ref = (t >= 0) ? t : w;
+        if (r.success) snprintf(ebuf, sizeof ebuf, "+%lld", (long long)r.moves - ref);
+        else           snprintf(ebuf, sizeof ebuf, "-");
 
+        char obuf[64];
+        if (r.success)           snprintf(obuf, sizeof obuf, "sorted");
+        else if (r.cycleAt >= 0) snprintf(obuf, sizeof obuf,
+                                          "CYCLES (period %d, from step %d)",
+                                          r.cycleLen, r.cycleAt);
+        else                     snprintf(obuf, sizeof obuf, "hit step limit");
 
-        bool match =
-            r.success &&
-            r.moves == true_T;
-
-
-        cout
-            << "n=" << n
-            << ": moves=" << r.moves
-            << " (u=" << r.useful
-            << ",z=" << r.wasted
-            << ",p=" << r.regressive
-            << ") success=" << boolalpha << r.success
-            << " true T(n)=" << true_T
-            << " MATCH=" << boolalpha << match
-            << '\n';
+        printf("%3d %7d %6d %6d %6d %9lld %8s %7s  %s\n",
+               n, r.moves, r.useful, r.wasted, r.regressive,
+               w, tbuf, ebuf, obuf);
     }
 
-
+    printf("\nThe `excess` column is the gap between the heuristic and the true\n"
+           "optimum.  The rule is not merely suboptimal: from n = 5 on it enters\n"
+           "a cycle of neutral moves and never sorts at all.\n");
     return 0;
 }

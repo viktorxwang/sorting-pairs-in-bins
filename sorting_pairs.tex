@@ -27,7 +27,7 @@
 \newcommand{\Z}{\mathbb{Z}}
 \newcommand{\ex}{\mathrm{excess}}
 
-\title[Sorting Pairs in Bins]{Sorting Pairs in Bins: Exact Values, a Conjectured Closed Form, and Partial Progress on a Puzzle of Winkler}
+\title[Sorting Pairs in Bins]{Sorting Pairs in Bins: $T(8)=40$ by Exhaustive Search, Two Refuted Conjectures, and the Exceptional Case $n=6$}
 
 \author{}
 \date{\today}
@@ -35,11 +35,13 @@
 \begin{document}
 
 \begin{abstract}
-We study the \emph{Sorting Pairs in Bins} puzzle, listed among the unsolved puzzles in Peter Winkler's \emph{Mathematical Puzzles: A Connoisseur's Collection}: $n$ bins are arranged in a row, the $i$-th bin initially containing two balls labeled $n+1-i$; a move consists of swapping one ball from bin $i$ with one ball from bin $i+1$; the goal is to determine $T(n)$, the minimum number of moves needed to bring bin $i$ to contain two balls labeled $i$ for every $i$. We report exact values of $T(n)$ for $n\le 7$, obtained by exhaustive and bidirectional breadth-first search, and conjecture the closed-form formula
-\[
-T(n) = \left\lfloor \frac{n^2}{2}\right\rfloor + S(n), \qquad S(n) = \sum_{k=2}^n \left\lfloor \frac{k}{3}\right\rfloor,
-\]
-which we verify exactly for $1\le n\le 7$ and for which we give an elementary closed form. We prove the baseline lower bound $T(n)\ge \lfloor n^2/2\rfloor$ via a displacement potential, establish an exact accounting identity decomposing $T(n)$ into a displacement term and an ``excess'' contributed by non-progressing moves, and reformulate the problem as a weighted reduced-word problem for the longest element of $S_{2n}$, in which we prove a new structural lemma governing the temporal order of three-wire crossings. We rigorously establish that several natural proof strategies --- single-wire arguments, positional-parity arguments, local aggregate potentials analyzed via linear programming over the full reachable state graph, pure local-greedy constructions, and a natural bin-removal induction --- are all individually insufficient to prove the conjectured excess term, and we document each insufficiency with an explicit witnessing example. We introduce an auxiliary ``wall-crossing'' subproblem for which we prove an exact linear formula, and report a striking, data-grounded ``50\% absorption'' phenomenon in a nested generalization of it that is in direct numerical tension with the main conjecture at $n=8$. We close with a precise statement of this open discrepancy and a list of open problems.
+We study the \emph{Sorting Pairs in Bins} puzzle, listed among the unsolved puzzles in Peter Winkler's \emph{Mathematical Puzzles: A Connoisseur's Collection}: $n$ bins stand in a row, the $i$-th initially containing two balls labeled $n+1-i$; a move exchanges one ball of bin $i$ with one ball of bin $i+1$; $T(n)$ is the least number of moves reaching the configuration in which bin $i$ holds two balls labeled $i$ for every $i$.
+
+We report exact values of $T(n)$ for $n\le 8$. The new value, $T(8)=40$, comes from an exhaustive search over all $545{,}007{,}960$ reachable configurations, made feasible by three observations: the reachable configurations are exactly the $n\times n$ non-negative integer matrices with all row and column sums $2$, so they admit a perfect hash into a contiguous range of integers and the search needs one byte per state rather than a hash-table entry; reversal of the bin order is a graph automorphism carrying the start configuration to the target, so a single forward search to half the diameter determines $T(n)$ exactly; and the rank of a neighbouring configuration is obtained from its parent's in constant time. The search completes in under six minutes in $520$\,MiB.
+
+This value refutes a closed-form conjecture we had advanced on the basis of the seven previously known values, namely $T(n)=\lfloor n^2/2\rfloor+\sum_{k=2}^{n}\lfloor k/3\rfloor$, which predicts $T(8)=41$; it equally refutes a competing extrapolation drawn from an auxiliary wall-crossing subproblem, which predicts $T(8)=42$. Both are wrong, and in the same direction. We also record, as a correction to the earlier version of this work, that the literature already contained sharper information: Winkler's lower bound $T(n)\ge\lceil\binom{2n}{2}/3\rceil$, and the algorithm of Ito, Teruyama and Yoshida, which attains that bound exactly when $n=2^m+1$ and, by their computer search, for every $n\le 20$ except $n=6$. Our $T(8)=40$ is an independent exhaustive confirmation of the first value of their conjecture not covered by their proof.
+
+What survives is the exceptional case. $T(6)=23$ strictly exceeds Winkler's bound of $22$, and $n=6$ is the only value of $n\le 20$ known to do so; no explanation is known. We prove a displacement lower bound and an exact accounting identity decomposing $T(n)$ into a displacement term and an excess contributed by non-progressing moves; we reformulate the problem as a weighted reduced-word problem for the longest element of $S_{2n}$ and prove a structural lemma governing the temporal order of three-wire crossings. We then establish that several natural proof strategies --- single-wire arguments, positional-parity arguments, local aggregate potentials analyzed by linear programming over the full reachable state graph, local-greedy constructions, and a bin-removal induction --- are each individually insufficient to account for the excess, and we document every insufficiency with an explicit witness. We close by proposing the anomaly at $n=6$ as the central open problem in this line of work.
 \end{abstract}
 
 \maketitle
@@ -54,13 +56,34 @@ In \emph{Mathematical Puzzles: A Connoisseur's Collection} \cite{Winkler}, Peter
 
 We interpret ``swap two balls from adjacent bins,'' consistently with the accompanying figure in \cite{Winkler}, as: choose one ball from bin $i$ and one ball from bin $i+1$, for some $i$, and exchange them. Denote by $T(n)$ the minimum number of such swaps required to reach the target configuration, in which bin $i$ contains two balls labeled $i$ for every $i$.
 
-This puzzle sits in the same family as the \emph{Malicious Ma\^itre D'} problem, also from \cite{Winkler}, whose adaptive variant was recently resolved by Madhavarapu \cite{MaitreD}, building on work of Acton, Kotek, Miller, and others. That paper's methodology --- exact combinatorial analysis of a discrete optimization puzzle from Winkler's book, informed by extensive computational experimentation --- served as a model for the present investigation.
+This puzzle sits in the same family as the \emph{Malicious Ma\^itre D'} problem, also from \cite{Winkler}, whose adaptive variant was recently resolved by Madhavarapu \cite{MaitreD}. That paper's methodology --- exact combinatorial analysis of a discrete optimization puzzle from Winkler's book, informed by extensive computational experimentation --- served as a model for the present investigation.
 
-Unlike the Malicious Ma\^itre D' problem, we have not been able to obtain a complete solution to Sorting Pairs in Bins. What we report here is, we believe, still of value: an exact conjectural formula supported by full verification for $n\le 7$; several genuine theorems constraining any eventual proof; a systematic account of natural proof strategies that we have rigorously ruled out, together with explicit witnessing counterexamples, so that future investigators need not repeat this work; and a striking auxiliary result whose naive extrapolation directly conflicts with our main conjecture at the very next unverified value, $n=8$ --- a discrepancy we present honestly as unresolved, since at the time of writing $T(8)$ has not been independently computed.
+\subsection{Relation to prior work, and a correction}
+\label{sec:priorwork}
 
-We hope this paper is useful in two ways: as a source of exact data and rigorous partial results for anyone attempting to complete the proof, and as a case study in how far one can push a computational-plus-structural investigation of a discrete optimization puzzle before hitting a genuine wall, together with a candid account of exactly where that wall is.
+An earlier draft of this paper advanced a conjectural closed form for $T(n)$ fitted to the seven values $T(1),\dots,T(7)$, and proposed the determination of $T(8)$ as the decisive next computation. Both the conjecture and its framing were mistaken, in ways the existing literature already ruled out, and we begin by saying so plainly.
 
-\subsection{Organization} Section~\ref{sec:prelim} sets notation and reports the exact values of $T(n)$ for $n\le 7$. Section~\ref{sec:formula} states the main conjecture and gives an elementary closed form for its correction term $S(n)$. Section~\ref{sec:lowerbound} proves the baseline displacement lower bound and an exact accounting identity. Section~\ref{sec:wiring} develops a reformulation of the problem in terms of reduced words for the longest element of a symmetric group, proves a new lemma about three-wire crossings, and explains precisely why this reformulation, as far as we have been able to push it, does not yield the full conjectured bound. Section~\ref{sec:ruledout} catalogues further proof strategies we have ruled out, each with an explicit counterexample. Section~\ref{sec:wall} introduces an auxiliary subproblem for which we prove an exact formula, and reports the 50\%-absorption phenomenon and its unresolved tension with the main conjecture at $n=8$. Section~\ref{sec:open} collects open problems.
+First, the baseline lower bound. We had proved only the displacement bound $T(n)\ge\lfloor n^2/2\rfloor$ of Corollary~\ref{cor:baseline} below. Winkler \cite{Winkler} states the considerably stronger bound
+\begin{equation}
+\label{eq:winkler}
+T(n)\;\ge\;\left\lceil \binom{2n}{2}\Big/3\right\rceil = \left\lceil\frac{n(2n-1)}{3}\right\rceil = \frac{2}{3}n^2 + O(n),
+\end{equation}
+obtained by charging one unit to each of the $\binom{2n}{2}$ pairs of balls and observing that a single exchange can discharge at most three of them; it is recorded, with discussion, on West's problem page \cite{West}. This is asymptotically $\tfrac{2}{3}n^2$ against our $\tfrac12 n^2$, and it is the bound that actually binds. On the upper side, the naive strategy uses $n(2n-1)$ moves and a recursive improvement of Stocker \cite{Stocker} brings this to $\tfrac45 n^2$ asymptotically.
+
+Second, and decisively, Ito, Teruyama and Yoshida \cite{ITY} give an explicit recursive algorithm $PB(n)$ solving the puzzle in fewer than $\tfrac{2}{3}n^2$ moves, and prove that when $n=2^m+1$ it uses exactly $\binom{2n}{2}/3$ moves. Combined with \eqref{eq:winkler} this \emph{determines} $T(n)$ for $n=2,3,5,9,17,33,\dots$. They further report finding move sequences meeting the lower bound by computer search for every $n\le 20$ except $n=6$, and conjecture on that basis that
+\begin{equation}
+\label{eq:ity}
+T(n) = \left\lceil\frac{n(2n-1)}{3}\right\rceil \qquad\text{for all } n\neq 6.
+\end{equation}
+Our conjecture disagrees with \eqref{eq:ity} at every $n\ge 8$, and at $n=9$ it is refuted outright by their theorem, with no computation required: $9=2^3+1$, so $T(9)=\binom{18}{2}/3=51$, whereas our formula predicts $52$.
+
+We have since computed $T(8)=40$ exhaustively (Section~\ref{sec:search}), which refutes our conjecture at the first value where the two disagree, and independently confirms \eqref{eq:ity} at the first value their proof does not cover.
+
+What remains genuinely open, and what we now regard as the point of this paper, is the single exceptional value. $T(6)=23$ exceeds Winkler's bound of $22$, and $n=6$ is the only $n\le 20$ for which the bound is known not to be tight. Neither \cite{ITY} nor, so far as we are aware, anyone else offers an explanation. The lower-bound machinery of Sections~\ref{sec:lowerbound}--\ref{sec:ruledout} was built to explain a quadratic excess that does not exist; but the question it was built to answer --- what forces non-progressing moves, and why --- is exactly the question $n=6$ poses, now in sharply localized form.
+
+Accordingly the rest of this paper should be read as follows. Section~\ref{sec:prelim} reports the exact values and the search that produced $T(8)$. Section~\ref{sec:formula} records the refuted conjecture and what the excess actually is. Sections~\ref{sec:lowerbound}--\ref{sec:ruledout} contain results that remain valid as stated --- the accounting identity, the reduced-word reformulation, the triple-sandwiching lemma, and a catalogue of ruled-out proof strategies --- retargeted at the excess as it actually behaves. Section~\ref{sec:wall} reports the auxiliary wall-crossing problem and resolves, negatively, the discrepancy it appeared to raise.
+
+In more detail: Section~\ref{sec:prelim} sets notation, reports the exact values of $T(n)$ for $n\le 8$, and describes the search that produced $T(8)$. Section~\ref{sec:formula} introduces the excess $E(n)$ and records the refuted conjecture. Section~\ref{sec:lowerbound} proves the baseline displacement lower bound and an exact accounting identity. Section~\ref{sec:wiring} develops a reformulation in terms of reduced words for the longest element of a symmetric group, proves a new lemma about three-wire crossings, and explains why this reformulation, as far as we have been able to push it, does not yield a bound on the excess. Section~\ref{sec:ruledout} catalogues further proof strategies we have ruled out, each with an explicit counterexample. Section~\ref{sec:wall} introduces an auxiliary subproblem for which we prove an exact formula, reports the 50\%-absorption phenomenon, and resolves negatively the tension it appeared to create at $n=8$. Section~\ref{sec:open} collects open problems, of which the anomaly at $n=6$ is the one we would most like to see settled.
 
 \section{Preliminaries and exact values}
 \label{sec:prelim}
@@ -71,7 +94,7 @@ For a positive integer $n$, an \emph{$n$-bin configuration} is an assignment, to
 A \emph{move} at boundary $i$ (for $1\le i\le n-1$) selects one ball from bin $i$ and one ball from bin $i+1$ and exchanges their bins. Let $T(n)$ denote the minimum number of moves required to transform the start configuration into the target configuration.
 \end{definition}
 
-We computed $T(n)$ exactly for $n\le 7$ using exhaustive breadth-first search over the full reachable configuration graph, cross-validated by an independent bidirectional BFS implementation. Table~\ref{tab:exact} lists the results together with the size of the reachable state space explored.
+We computed $T(n)$ exactly for $n\le 8$ by exhaustive breadth-first search over the full reachable configuration graph. The values for $n\le 7$ were cross-validated against an independent bidirectional BFS implementation; the value $T(8)=40$ required the additional machinery of Section~\ref{sec:search}. Table~\ref{tab:exact} lists the results together with the size of the configuration space.
 
 \begin{table}[h]
 \centering
@@ -85,19 +108,81 @@ $n$ & $T(n)$ & reachable states \\
 4 & 10 & 282 \\
 5 & 15 & 6{,}210 \\
 6 & 23 & 202{,}410 \\
-7 & 31 & $\sim 8\times 10^{6}$ (bidirectional meeting point) \\
+7 & 31 & 9{,}135{,}630 \\
+8 & 40 & 545{,}007{,}960 \\
 \bottomrule
 \end{tabular}
-\caption{Exact values of $T(n)$, $1\le n\le 7$.}
+\caption{Exact values of $T(n)$, $1\le n\le 8$. The counts are the total number of configurations, all of which turn out to be reachable.}
 \label{tab:exact}
 \end{table}
 
-Attempts to extend Table~\ref{tab:exact} to $n=8$ by the same exhaustive methods, even after substantial optimization (compact state encoding, open-addressing hash tables, bidirectional search), have not completed within the memory and time available to us; reachable-state counts in excess of $10^{8}$ were reached without termination. We regard $T(8)$ as currently unknown by exhaustive computation, and we return to why this matters in Section~\ref{sec:wall}.
+\subsection{The search}
+\label{sec:search}
 
-\section{The conjectured formula}
+Earlier attempts to reach $n=8$ by hash-table search did not terminate in the memory available to us. Three observations remove the obstruction.
+
+\begin{proposition}
+\label{prop:statecount}
+The set of $n$-bin configurations is in bijection with the set of $n\times n$ matrices with non-negative integer entries and all row and column sums equal to $2$ (rows indexed by labels, columns by bins), and every configuration is reachable from the start. The number of reachable states is therefore $1,3,21,282,6210,202410,9135630,545007960$ for $n=1,\dots,8$.
+\end{proposition}
+
+These counts are computed by the recursion
+\[
+F(a,b) = a(1+b)\,F(a-1,b) + \tbinom{a}{2} F(a-2,b+2) + \tbinom{b}{2} F(a,b-2),\qquad F(0,0)=1,
+\]
+where $F(a,b)$ counts the ways to fill the remaining $(2a+b)/2$ bins when $a$ labels still have two balls unplaced and $b$ labels have one; the state count is $F(n,0)$. The three terms correspond to placing, in the leftmost unfilled bin, a matched pair or one doubled label beside a single one; two doubled labels; or two single labels.
+
+Because the number of completions depends only on the pair $(a,b)$ and not on which labels remain, the same recursion supplies a \emph{perfect hash}: filling bins left to right and ordering the candidate pairs for each bin lexicographically ranks configurations bijectively onto $\{0,1,\dots,F(n,0)-1\}$. A breadth-first search therefore needs one byte per state --- $520$\,MiB at $n=8$ --- rather than a hash-table entry, and it never needs to store a frontier list, since each level can be recovered by a linear scan of the distance array.
+
+\begin{lemma}[Reversal symmetry]
+\label{lem:tau}
+Let $\tau$ reverse the order of the bins. Then $\tau$ is an automorphism of the configuration graph, $\tau$ is an involution, and $\tau(\mathrm{start})=\mathrm{target}$. Consequently $d(x,\mathrm{target})=d(\tau(x),\mathrm{start})$ for every configuration $x$, and
+\[
+T(n) = \min_{x}\;\bigl[\,d(\mathrm{start},x) + d(\mathrm{start},\tau(x))\,\bigr].
+\]
+\end{lemma}
+
+\begin{proof}
+Reversal maps bin $i$ to bin $n+1-i$ and so carries adjacent bins to adjacent bins, hence moves at boundary $i$ to moves at boundary $n-i$; applying it twice is the identity. Reversing the start configuration, in which bin $i$ holds two balls labeled $n+1-i$, puts two balls labeled $n+1-(n+1-i)=i$ in bin $i$, which is the target. Hence $d(x,\mathrm{target})=d(\tau x,\tau(\mathrm{target}))=d(\tau x,\mathrm{start})$, and the displayed identity is the decomposition of a shortest path at an intermediate vertex.
+\end{proof}
+
+Lemma~\ref{lem:tau} halves the search depth and, unlike ordinary bidirectional search, needs only \emph{one} distance array: a forward search to depth $D$ determines $T(n)$ exactly whenever $T(n)\le 2D$, because a shortest path of length $T\le 2D$ has an intermediate vertex $x$ with $d(\mathrm{start},x)=\lfloor T/2\rfloor\le D$ and $d(\mathrm{start},\tau(x))=\lceil T/2\rceil\le D$, so both $x$ and $\tau(x)$ have been reached and the minimum above has been attained. For $n=8$ this means searching to depth $20$ rather than $40$.
+
+Finally, a move at boundary $i$ preserves the multiset of labels held jointly by bins $i$ and $i+1$, hence preserves the multiset available to bins $i+2,\dots,n$. All rank contributions except those of bins $i$ and $i+1$ therefore cancel, and a neighbour's rank is obtained from its parent's in constant time rather than by re-ranking.
+
+With these three ingredients the $n=8$ search reaches depth $20$ in $328$ seconds and $520$\,MiB, expanding $199{,}911{,}217$ states --- $36.7\%$ of the space, the remainder being saved by Lemma~\ref{lem:tau} --- and yielding $T(8)=40$ together with an explicit optimal move sequence, which we verified by independent replay. The values for $n\le 7$ were cross-validated against a separate bidirectional hash-table implementation, which agrees at every value.
+
+\section{The excess, and a refuted conjecture}
 \label{sec:formula}
 
-\begin{conjecture}
+Write
+\[
+E(n) := T(n) - \left\lfloor\frac{n^2}{2}\right\rfloor
+\]
+for the \emph{excess} of $T(n)$ over the displacement bound of Corollary~\ref{cor:baseline}. By Theorem~\ref{thm:accounting} below, $E(n)$ is exactly the minimum of $z+2p$ over complete move sequences, where $z$ counts neutral and $p$ regressive moves; it is the quantity every lower-bound argument in this paper is trying to bound from below. Table~\ref{tab:excess} records its known values.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+$n$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+$T(n)$ & 0 & 2 & 5 & 10 & 15 & 23 & 31 & 40 \\
+$\lfloor n^2/2\rfloor$ & 0 & 2 & 4 & 8 & 12 & 18 & 24 & 32 \\
+$E(n)$ & 0 & 0 & 1 & 2 & 3 & 5 & 7 & 8 \\
+Winkler bound \eqref{eq:winkler} & --- & 2 & 5 & 10 & 15 & 22 & 31 & 40 \\
+\bottomrule
+\end{tabular}
+\caption{The excess $E(n)=T(n)-\lfloor n^2/2\rfloor$, and Winkler's lower bound. The bound is attained everywhere shown except at $n=6$.}
+\label{tab:excess}
+\end{table}
+
+\subsection{A refuted conjecture}
+\label{sec:refuted}
+
+On the basis of the values $T(1),\dots,T(7)$ alone, we had conjectured the following, and we record it here together with its refutation rather than silently withdrawing it.
+
+\begin{conjecture}[Refuted]
 \label{conj:main}
 For all $n\ge 1$,
 \[
@@ -105,9 +190,18 @@ T(n) = \left\lfloor \frac{n^2}{2}\right\rfloor + S(n), \qquad S(n) := \sum_{k=2}
 \]
 \end{conjecture}
 
-Conjecture~\ref{conj:main} is verified exactly against every entry of Table~\ref{tab:exact}. It is not, at present, proved; we regard establishing it as the central open problem of this line of work.
+\begin{proposition}
+\label{prop:refutation}
+Conjecture~\ref{conj:main} is false. It agrees with $T(n)$ for $1\le n\le 7$ and fails at every $n\ge 8$ at which $T(n)$ is known:
+\begin{itemize}[leftmargin=*]
+\item $n=8$: the conjecture predicts $S(8)=9$ and $T(8)=41$; the exhaustive search of Section~\ref{sec:search} gives $T(8)=40$, i.e.\ $E(8)=8$.
+\item $n=9$: the conjecture predicts $T(9)=52$. Since $9=2^3+1$, the algorithm of \cite{ITY} sorts nine bins in $\binom{18}{2}/3=51$ moves, and \eqref{eq:winkler} gives $T(9)\ge 51$; hence $T(9)=51$. This refutation requires no computation.
+\end{itemize}
+\end{proposition}
 
-The correction term $S(n)$ admits a fully elementary closed form.
+The failure is not a near miss that a small correction repairs. Conjecture~\ref{conj:main} grows like $\tfrac12 n^2 + \tfrac16 n^2 = \tfrac23 n^2$, the same leading order as \eqref{eq:ity}, but its correction term $S(n)$ overshoots the true excess by an amount that itself grows: at $n=8,9,10,11,12$ the conjectured excess exceeds the value predicted by \eqref{eq:ity} by $1,1,1,1,2$ respectively. Fitting a sum of floors to seven data points produced a formula with the right leading behaviour and the wrong correction, and seven points were not enough to tell the difference.
+
+For the record, the correction term of the refuted conjecture admits a fully elementary closed form; the following is a valid statement about the function $S$, and is retained only because it is referred to later.
 
 \begin{theorem}
 \label{thm:closedform}
@@ -131,13 +225,25 @@ Substituting $r=0,1,2$ gives the three displayed cases. \qedhere
 \end{proof}
 
 \begin{remark}
-Combined with the elementary fact that $\lfloor n^2/2\rfloor$ depends only on the parity of $n$, Theorem~\ref{thm:closedform} allows $T(n)$, under Conjecture~\ref{conj:main}, to be written as an explicit quadratic polynomial in $t$ once the residue of $n$ modulo $6$ is fixed. For instance, writing $n=6t+r'$ for $r'=0,\dots,5$ gives $T(n) = 24t^2+c_1(r')t+c_0(r')$ for explicit constants; e.g. $T(6t)=24t^2-t$ and $T(6t+1)=24t^2+7t$. We omit the routine remaining cases.
+The corresponding closed form for the value predicted by \eqref{eq:ity} is simpler, and it is worth recording for comparison. Since $2n^2-n\equiv 0 \pmod 3$ unless $n\equiv 1\pmod 3$, in which case $2n^2-n\equiv 1$, we have
+\[
+\left\lceil\frac{n(2n-1)}{3}\right\rceil =
+\begin{cases}
+\dfrac{2n^2-n}{3}, & n\equiv 0,2 \pmod 3,\\[6pt]
+\dfrac{2n^2-n+2}{3}, & n\equiv 1 \pmod 3,
+\end{cases}
+\]
+a single quadratic with a correction depending only on $n$ modulo $3$. The refuted Conjecture~\ref{conj:main} instead requires the residue of $n$ modulo $6$, and exceeds this value by a quantity that grows without bound. That the simpler expression is the correct one is, in hindsight, unsurprising; it was not visible from seven data points.
 \end{remark}
 
 \begin{corollary}
 \label{cor:asymptotics}
-Under Conjecture~\ref{conj:main}, $T(n) = \tfrac{2}{3}n^2 + O(n)$.
+$T(n) = \tfrac{2}{3}n^2 + O(n)$.
 \end{corollary}
+
+\begin{proof}
+The lower bound is \eqref{eq:winkler}; the upper bound is Theorem~1 of \cite{ITY}, whose algorithm uses fewer than $\tfrac{2}{3}n^2$ moves for every $n\ge 2$. Both the refuted Conjecture~\ref{conj:main} and \eqref{eq:ity} are consistent with this asymptotic, which is why seven data points could not separate them.
+\end{proof}
 
 \section{A proven lower bound and an exact accounting identity}
 \label{sec:lowerbound}
@@ -175,17 +281,18 @@ Telescoping $D$ along the sequence gives $D(\text{target})-D(\text{start}) = -2u
 $T(n) \ge \lfloor n^2/2\rfloor$ for all $n$.
 \end{corollary}
 
-Theorem~\ref{thm:accounting} reduces Conjecture~\ref{conj:main} to a single strategy-independent inequality.
+Theorem~\ref{thm:accounting} reduces any proposed formula for $T(n)$ to a single strategy-independent inequality.
 
 \begin{proposition}
 \label{prop:reduction}
-Conjecture~\ref{conj:main} is equivalent to the assertion that every complete sequence of moves satisfies
-\[
-z + 2p \;\ge\; S(n).
-\]
+$E(n) = \min (z+2p)$, the minimum taken over all complete sequences of moves. In particular, any claimed formula $T(n)=\lfloor n^2/2\rfloor + f(n)$ is equivalent to the assertion that every complete sequence satisfies $z+2p\ge f(n)$, together with the exhibition of a sequence attaining it.
 \end{proposition}
 
-We were unable to prove Proposition~\ref{prop:reduction}'s inequality in general; the remainder of the paper documents both partial progress toward it and a substantial catalogue of approaches that fail.
+Proposition~\ref{prop:reduction} is what makes the excess the right object of study: it converts a statement about shortest paths into a strategy-independent inequality about arbitrary move sequences. Under \eqref{eq:ity} the target inequality is
+\[
+z+2p \;\ge\; \left\lceil\frac{n(2n-1)}{3}\right\rceil - \left\lfloor\frac{n^2}{2}\right\rfloor \qquad (n\neq 6),
+\]
+and at $n=6$ the truth is one larger than this. We were unable to prove the inequality in general for any of the candidate right-hand sides we tried; the remainder of the paper documents partial progress and a substantial catalogue of approaches that fail.
 
 We do, however, have one further elementary lower bound, sufficient to slightly strengthen Corollary~\ref{cor:baseline} for odd $n$.
 
@@ -294,6 +401,17 @@ Formulated as a linear program (features as columns, one constraint per directed
 The rule ``if any useful move is available, perform one (arbitrary tie-break), otherwise perform an arbitrary move'' does not reliably reach $T(n)$ for $n\ge 5$: in $20$ independent random tie-breaking trials each for $n=5,6$, the rule never once matched the true optimum (best of $20$ trials: $20$ vs.\ true value $15$ for $n=5$; $29$ vs.\ true value $23$ for $n=6$).
 \end{proposition}
 
+The deterministic version of the rule fails more badly than this, and the sharper statement is worth recording, since it removes local greediness from consideration entirely rather than merely bounding its quality.
+
+\begin{proposition}[Deterministic centre-out greedy does not terminate]
+\label{prop:greedycycles}
+Consider the deterministic rule: perform a useful move at the boundary nearest the centre if one exists; otherwise a neutral move at the boundary nearest the centre; otherwise a regressive move at the centre boundary, breaking all ties toward the smaller boundary index. This rule sorts $n\le 4$ bins (in $6$ and $12$ moves for $n=3,4$, against $T(3)=5$ and $T(4)=10$), but for every $n$ with $5\le n\le 12$ it enters a cycle of period $2$ and never sorts at all --- after step $7$ for odd $n$, and after step $14$ for even $n$.
+\end{proposition}
+
+\begin{proof}[Method]
+Direct simulation with the reached configurations recorded, so that a repetition is detected as such rather than inferred from a step limit.
+\end{proof}
+
 \begin{proposition}[Bin-removal induction fails]
 \label{prop:removalfails}
 It is not true that an optimal solution for $n$ bins restricts, on the ``inner'' bins $2,\dots,n-1$, to an optimal (or even a valid, self-contained) solution for the corresponding $(n-2)$-bin problem. In an optimal solution for $n=6$, a ball whose label belongs to an inner bin is observed to visit an outer bin (bin $1$) at an intermediate step.
@@ -344,28 +462,29 @@ We generalized Definition~\ref{def:wallproblem} by replacing the $L$ trivially-h
 
 Define $\mathrm{additional}(L) := S(L+2)-S(L)$, the marginal excess attributable to the outer pair crossing an \emph{active} interior, using only already-verified data (no extrapolation).
 
-\begin{observation}[50\% absorption]
+\begin{observation}[50\% absorption, and its breakdown]
 \label{obs:absorption}
-For $L=3,4,5$, $\mathrm{additional}(L) = L-1$, exactly half of $g(L)=2L-2$. (For $L=1,2$, $\mathrm{additional}(L)=g(L)$, i.e.\ no absorption, consistent with the interior having negligible structure at these sizes.)
+For $L=3,4,5$, $\mathrm{additional}(L) = L-1$, exactly half of $g(L)=2L-2$. (For $L=1,2$, $\mathrm{additional}(L)=g(L)$, i.e.\ no absorption, consistent with the interior having negligible structure at these sizes.) The pattern does \emph{not} continue: $\mathrm{additional}(6) = E(8)-E(6) = 8-5 = 3$, which is neither $L-1=5$ nor any fixed fraction consistent with the earlier values, being $30\%$ of $g(6)=10$.
 \end{observation}
 
-Observation~\ref{obs:absorption} is a clean, striking pattern, and we have a plausible qualitative explanation for it (roughly: when the interior has its own genuine task, a middle ball displaced in the direction it already needed to travel costs nothing extra, while displacement in the opposite direction remains pure waste, suggesting a natural $50\%$ split) but no proof.
+We had a plausible qualitative story for the $50\%$ figure --- roughly, that when the interior has its own genuine task, a middle ball displaced in the direction it already needed to travel costs nothing extra, while displacement in the opposite direction remains pure waste --- and we record it only to note that the story was wrong, or at least that whatever it describes stops applying by $L=6$.
 
-More importantly, Observation~\ref{obs:absorption}, if extrapolated one further step to $L=6$ (i.e.\ $n=8$), predicts
+\subsection{The discrepancy at $n=8$, resolved}
+\label{sec:resolved}
+
+The earlier version of this paper presented the following as its sharpest open question: Observation~\ref{obs:absorption}, extrapolated one step to $L=6$ (that is, $n=8$), predicts
 \[
-\mathrm{additional}(6) = 5 \implies S(8) = S(6)+5 = 5+5 = 10,
+\mathrm{additional}(6) = 5 \implies E(8) = E(6)+5 = 10 \implies T(8) = 42,
 \]
-whereas Conjecture~\ref{conj:main}, via the closed form of Theorem~\ref{thm:closedform}, predicts
+whereas Conjecture~\ref{conj:main}, via Theorem~\ref{thm:closedform}, predicts
 \[
-S(8) = S(7) + \left\lfloor \tfrac{8}{3}\right\rfloor = 7+2 = 9.
+E(8) = E(7) + \left\lfloor \tfrac{8}{3}\right\rfloor = 7+2 = 9 \implies T(8) = 41.
 \]
+We described these as ``two live hypotheses'' making ``different, mutually exclusive predictions at the very next value'', and judged Conjecture~\ref{conj:main} the better supported of the two on the grounds that it rested on seven confirmed values rather than five.
 
-\begin{openproblem}
-\label{open:n8}
-Determine $T(8)$ (equivalently $S(8)$) independently, and thereby resolve whether $S(8)=9$ (consistent with Conjecture~\ref{conj:main}) or $S(8)=10$ (consistent with a naive extrapolation of Observation~\ref{obs:absorption}), or neither.
-\end{openproblem}
+The exhaustive computation of Section~\ref{sec:search} gives $T(8)=40$, so $E(8)=8$. \emph{Both} predictions are wrong, and both err in the same direction. The framing was wrong too: the question was never which of two extrapolations to believe, since \eqref{eq:ity} --- already in the literature, and already checked by computer search at $n=8$ by \cite{ITY} --- predicted $40$ and was correct.
 
-We regard Open Problem~\ref{open:n8} as the single most valuable immediate next computation for this line of work: both live hypotheses are supported by exact, non-extrapolated data at every point checked so far, and they make different, mutually exclusive predictions at the very next value. We emphasize that Observation~\ref{obs:absorption} is exactly that --- an observation drawn from five confirmed data points ($L=1,\dots,5$) --- and not a theorem; we present the resulting tension as a demonstration of the danger of extrapolating even a very clean-looking finite pattern, rather than as evidence against Conjecture~\ref{conj:main}, which remains, in our judgment, the better-supported of the two hypotheses by virtue of resting on seven confirmed values rather than five.
+We leave this episode in place rather than quietly deleting it, because the lesson is the substantive one. Two independent-looking patterns, each clean and each fitted to five or seven exact values, both extrapolated wrongly at the first untested point; and the arithmetic of ``how many data points support it'' gave no useful guidance, because the pattern with more support was not thereby closer to the truth. The check that would have settled the matter was not a further extrapolation but a literature search.
 
 \section{Discussion and open problems}
 \label{sec:open}
@@ -373,38 +492,51 @@ We regard Open Problem~\ref{open:n8} as the single most valuable immediate next 
 We summarize the logical status of every claim in this paper, to guard against the conjectural and the proven being conflated.
 
 \begin{itemize}[leftmargin=*]
-\item \textbf{Proved}: Table~\ref{tab:exact} (exhaustive search); Theorem~\ref{thm:closedform} (closed form for $S(n)$); Lemma~\ref{lem:displacement}, Corollary~\ref{cor:baseline}, Theorem~\ref{thm:accounting}, Proposition~\ref{prop:reduction} (the baseline bound and accounting identity); Lemma~\ref{lem:oddstart} (odd-$n$ strengthening); Proposition~\ref{prop:correspondence} and Lemma~\ref{lem:tripleF} (the reduced-word reformulation and the triple-sandwiching lemma); Lemma~\ref{lem:typepreservation} (type preservation); Propositions~\ref{prop:betweenness_fails}, \ref{prop:aggregate_fails}, \ref{prop:LPfails}, \ref{prop:greedyfails}, \ref{prop:removalfails}, \ref{prop:blockagefails} (each a rigorously witnessed negative/insufficiency result).
-\item \textbf{Exhaustively verified for stated small cases, not proved in general}: Conjecture~\ref{conj:main} ($n\le 7$); Theorem~\ref{thm:wallformula} ($L\le 6$).
-\item \textbf{Observed pattern from exact data, explicitly not claimed as a theorem}: Observation~\ref{obs:absorption}, whose naive extrapolation conflicts with Conjecture~\ref{conj:main} at $n=8$ (Open Problem~\ref{open:n8}).
+\item \textbf{Proved}: Table~\ref{tab:exact} for $n\le 8$ (exhaustive search); Proposition~\ref{prop:statecount} and Lemma~\ref{lem:tau} (the state count and the reversal symmetry that make the $n=8$ search feasible); Theorem~\ref{thm:closedform} (closed form for $S(n)$, now a statement about $S$ alone); Lemma~\ref{lem:displacement}, Corollary~\ref{cor:baseline}, Theorem~\ref{thm:accounting}, Proposition~\ref{prop:reduction} (the baseline bound and accounting identity); Lemma~\ref{lem:oddstart} (odd-$n$ strengthening); Proposition~\ref{prop:correspondence} and Lemma~\ref{lem:tripleF} (the reduced-word reformulation and the triple-sandwiching lemma); Lemma~\ref{lem:typepreservation} (type preservation); Propositions~\ref{prop:betweenness_fails}, \ref{prop:aggregate_fails}, \ref{prop:LPfails}, \ref{prop:greedyfails}, \ref{prop:greedycycles}, \ref{prop:removalfails}, \ref{prop:blockagefails} (each a rigorously witnessed negative/insufficiency result).
+\item \textbf{Refuted}: Conjecture~\ref{conj:main}, at $n=8$ by exhaustive search and at $n=9$ by the theorem of \cite{ITY} (Proposition~\ref{prop:refutation}); and the extrapolation of Observation~\ref{obs:absorption} to $L=6$, likewise by the value $T(8)=40$.
+\item \textbf{Exhaustively verified for stated small cases, not proved in general}: Theorem~\ref{thm:wallformula} ($L\le 6$); the conjecture \eqref{eq:ity} of \cite{ITY}, for $n\le 20$ except $n=6$ by their search and independently at $n=8$ here.
 \end{itemize}
 
-The central open problem remains proving (or disproving) Proposition~\ref{prop:reduction}'s inequality $z+2p\ge S(n)$ for every complete sequence of moves. We list what we regard as the most promising remaining directions, in rough order of how much of this paper's machinery they would reuse.
+The central open problem is no longer to prove a formula of our own. It is the exceptional case.
 
 \begin{openproblem}
-Find a strategy-independent argument --- not resting on any single-wire, aggregate-parity, or local-potential technique, all of which are ruled out by Section~\ref{sec:ruledout} and Section~\ref{sec:wiring} --- proving $z+2p\ge S(n)$.
+\label{open:six}
+Explain $n=6$. Why is $T(6)=23$ rather than the lower-bound value $22$, and why is $n=6$ apparently the only such $n$? Concretely: exhibit a property of the six-bin configuration graph that forces one extra non-progressing move and that provably fails for every other $n\le 20$.
+\end{openproblem}
+
+We regard Open Problem~\ref{open:six} as the most valuable question this line of work leaves behind. It is sharply localized, it is verified rather than conjectural at both ends, and the machinery of Sections~\ref{sec:lowerbound}--\ref{sec:wiring} --- the accounting identity, the reduced-word reformulation, the type-preservation lemma --- was built precisely to reason about forced non-progressing moves, which is what an answer would have to produce. The catalogue of Section~\ref{sec:ruledout} applies with equal force here: any explanation must survive the same witnesses, since a local potential that cannot see the difference between two configurations of the same type profile cannot see whatever distinguishes $n=6$ either.
+
+\begin{openproblem}
+Prove the conjecture \eqref{eq:ity} of \cite{ITY}: that $T(n)=\lceil n(2n-1)/3\rceil$ for every $n\neq 6$. By Proposition~\ref{prop:reduction} this is equivalent to the strategy-independent inequality $z+2p\ge\lceil n(2n-1)/3\rceil-\lfloor n^2/2\rfloor$ together with a matching construction, and the constructions are already available from \cite{ITY} for $n=2^m+1$ and from computer search for $n\le 20$. The open half is the lower bound, and it must not rest on any single-wire, aggregate-parity, or local-potential technique, all of which are ruled out in Sections~\ref{sec:wiring} and \ref{sec:ruledout}.
 \end{openproblem}
 
 \begin{openproblem}
-Prove Theorem~\ref{thm:wallformula} for general $L$ (we have only verified it for $L\le 6$), and determine whether the nested generalization of Section~\ref{sec:wall} admits an exact recursive formula for $\ex(L,m)$.
+Extend Table~\ref{tab:exact} to $n=9$. The construction of \cite{ITY} already gives $T(9)=51$, so this is not needed for the value; but an exhaustive search would produce the full level profile of the configuration graph, which is what one would want in order to attack Open Problem~\ref{open:six} comparatively. The obstruction is size: $41{,}514{,}583{,}320$ states is $41$\,GB at one byte per state even with the perfect hash of Proposition~\ref{prop:statecount}, so a search would have to be external-memory or use a further symmetry reduction.
 \end{openproblem}
 
 \begin{openproblem}
-Resolve Open Problem~\ref{open:n8}. More generally, determine whether $S(n)-S(n-2)$ follows the sum-of-floors pattern of Conjecture~\ref{conj:main} or the linear pattern suggested by Observation~\ref{obs:absorption}, or discover the correct formula reconciling both bodies of evidence.
+Prove Theorem~\ref{thm:wallformula} for general $L$ (we have only verified it for $L\le 6$), and determine whether the nested generalization of Section~\ref{sec:wall} admits an exact recursive formula for $\ex(L,m)$. In view of Observation~\ref{obs:absorption} this should be attempted without assuming any fixed absorption fraction.
 \end{openproblem}
 
 \begin{openproblem}
-Determine whether $p=0$ in every optimal solution (observed in every optimal trace examined in this work, for $n\le 6$, but not proved in general).
+Determine whether $p=0$ in every optimal solution (observed in every optimal trace examined in this work, including the $n=8$ trace produced in Section~\ref{sec:search}, but not proved in general).
 \end{openproblem}
 
 \section*{Acknowledgments}
 
-We thank Peter Winkler for posing this puzzle in \cite{Winkler}, and acknowledge the methodological debt this work owes to \cite{MaitreD} for demonstrating that a puzzle from Winkler's ``Unsolved Puzzles'' chapter can be fully resolved by a combination of careful combinatorial structure and computation; we regret that we have, so far, only partially succeeded in following that example.
+We thank Peter Winkler for posing this puzzle in \cite{Winkler}, and acknowledge the methodological debt this work owes to \cite{MaitreD}. We are indebted to Ito, Teruyama and Yoshida \cite{ITY} and to West's problem page \cite{West}, which between them contain the results that refute this paper's original conjecture; we should have consulted them first.
 
 \begin{thebibliography}{9}
 
 \bibitem{Winkler} P.~Winkler, \emph{Mathematical Puzzles: A Connoisseur's Collection}, A K Peters, Natick, MA, 2004.
 
 \bibitem{MaitreD} T.~V.~Madhavarapu, \emph{The Most Malicious Ma\^itre D'}, arXiv:2407.09000 (2025).
+
+\bibitem{ITY} H.~Ito, J.~Teruyama, and Y.~Yoshida, \emph{An almost optimal algorithm for Winkler's sorting pairs in bins}, Progress in Informatics \textbf{9} (2012), 3--7. \texttt{doi:10.2201/NiiPi.2012.9.2}
+
+\bibitem{West} D.~B.~West, \emph{Sorting pairs in bins}, REGS problem page, University of Illinois, 2008. \url{https://dwest.web.illinois.edu/regs/sortpair.html}
+
+\bibitem{Stocker} C.~Stocker and D.~B.~West, recursive upper bound of $\tfrac45 n^2$ for sorting pairs in bins, reported in \cite{West}, 2008.
 
 \end{thebibliography}
 

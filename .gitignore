@@ -1,1 +1,29 @@
-.exe
+# Compiled binaries / build output
+*.exe
+*.out
+*.o
+*.obj
+*.dll
+*.so
+*.dylib
+*.pdb
+*.ilk
+build/
+bin/
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.bbl
+*.blg
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+
+# Solver logs and scratch output
+n8_run.log
