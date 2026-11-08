@@ -3,8 +3,7 @@ sorting-pairs-in-bins
 
 Programs and research notes for "Sorting Pairs in Bins", a puzzle from the "Unsolved Puzzles" chapter of Peter Winkler's Mathematical Puzzles: A Connoisseur's Collection (2004).
 
-THE PROBLEM
------------
+The problem:
 
 There are n bins arranged in a row. Each bin initially contains two balls, both numbered n+1-i for bin i.
 
@@ -20,8 +19,7 @@ Let T(n) denote the minimum number of swaps required.
 
 This project began as an attempt to find a closed-form expression for T(n), inspired by Madhavarapu's 2025 resolution of another puzzle from the same chapter, Malicious Maître D'.
 
-RESULTS
--------
+Results:
 
 The exact value of T(n) is known for n <= 8.
 
@@ -41,7 +39,7 @@ T(n) >= ceil(n(2n-1)/3)
 
 For every value in the table except n=6, this bound is achievable.
 
-The value T(8)=40 was established through an exhaustive search of all 545,007,960 possible configurations. The computation took 328 seconds and used approximately 520 MiB of memory.
+The value T(8)=40 was established through an exhaustive search of all 545,007,960 possible configurations. The computation took 328 seconds and used approximately 520 MiB of memory, run on my computer. My computer's specs are 32GB RAM and 16GB CPU.
 
 This result disproved an earlier conjecture from this project:
 
@@ -51,8 +49,8 @@ The formula predicted T(8)=41, while the actual value is 40.
 
 The main remaining question is why T(6)=23, one more than Winkler's lower bound. This is the only known exception for n <= 20 to the conjecture that the lower bound is always achievable. No explanation are currently known.
 
-PREVIOUS WORK
--------------
+Previous work:
+My work mostly builds off of developing the algorithm. Brute force methods are often not feasible, and so these algorithms must be optimized.
 
 - Peter Winkler, Mathematical Puzzles: A Connoisseur's Collection (2004). Introduces the puzzle and establishes the lower bound.
 - H. Ito, J. Teruyama, and Y. Yoshida, "An Almost Optimal Algorithm for Winkler's Sorting Pairs in Bins", Progress in Informatics 9 (2012), 3-7.
@@ -62,8 +60,7 @@ PREVIOUS WORK
 - Douglas West, REGS problem page. Collects known bounds, a greedy algorithm, and the history of the problem.
   https://dwest.web.illinois.edu/regs/sortpair.html
 
-PROGRAMS
---------
+Programs:
 
 sortpairs.cpp
 Main solver. Computes exact values for n <= 8 and can save an optimal sequence of moves.
@@ -77,8 +74,7 @@ Analyzes optimal solutions, including neutral moves and bin type profiles.
 center_out_v2.cpp
 Implements a center-out greedy strategy and provides evidence that it never terminates for n >= 5.
 
-BUILDING
---------
+Building:
 
 Build everything using the 64-bit toolchain:
 
@@ -86,8 +82,7 @@ Build everything using the 64-bit toolchain:
 
 The project uses MSYS2 UCRT64, GCC 15, and the -O3 optimization flag. A 64-bit build is required for the n=8 search.
 
-RUNNING
--------
+Running:
 
 Display state counts and lower bounds:
 
@@ -114,8 +109,7 @@ Approximate runtimes:
 exact 7: 6 seconds
 exact 8: 328 seconds, 520 MiB
 
-SEARCH METHOD
--------------
+Search method:
 
 The n=8 search uses three ideas to reduce memory usage and computation time.
 
@@ -155,13 +149,11 @@ A swap between adjacent bins changes only those two bins. Therefore, most contri
 
 The solver updates only the affected contributions instead of recalculating the entire rank. This makes generating a neighboring configuration an O(1) operation.
 
-PERFORMANCE
------------
+Performance:
 
 The n=8 search expanded 199,911,217 configurations, approximately 36.7% of the total state space. It completed in 328 seconds using approximately 520 MiB of memory.
 
-BUILD NOTES
------------
+Build notes:
 
 - The previous VS Code configuration used 32-bit MinGW 6.3 without optimization. It has been replaced with MSYS2 UCRT64 (64-bit GCC 15) using -O3.
 - Building sorting_pairs.tex requires additional MiKTeX packages, including intcalc and booktabs.
