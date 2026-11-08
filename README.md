@@ -3,6 +3,8 @@ sorting-pairs-in-bins
 
 Programs and research notes for "Sorting Pairs in Bins", a puzzle from the "Unsolved Puzzles" chapter of Peter Winkler's Mathematical Puzzles: A Connoisseur's Collection (2004).
 
+Thank you for Prof. Clark Bray, for proposing this research project. I have found it interesting to see how these algorithms can be optimized through combinatorial techniques.
+
 ## The problem:
 
 There are n bins arranged in a row. Each bin initially contains two balls, both numbered n+1-i for bin i.
